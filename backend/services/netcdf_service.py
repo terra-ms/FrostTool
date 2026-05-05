@@ -1,5 +1,6 @@
 import io
 import logging
+import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, timedelta
 from pathlib import Path
@@ -22,6 +23,11 @@ from backend.services.cache_service import temperature_cache
 
 logger = logging.getLogger(__name__)
 
+# HDF5/NetCDF4 is not thread-safe in its default (non-threadsafe) build.
+# This lock serialises file open+read so the ThreadPoolExecutor can still
+# parallelise cache checks and path resolution without corrupting HDF5 state.
+_HDF5_LOCK = threading.Lock()
+
 
 def _get_data_root(temp_type: str = "mean") -> Path:
     if temp_type not in TEMPERATURE_SOURCES:
@@ -33,6 +39,12 @@ def _get_variable(temp_type: str = "mean") -> str:
     if temp_type not in TEMPERATURE_SOURCES:
         raise ValueError(f"Unknown temperature type: {temp_type}")
     return TEMPERATURE_SOURCES[temp_type]["variable"]  # type: ignore[return-value]
+
+
+def _get_units(temp_type: str = "mean") -> str:
+    if temp_type not in TEMPERATURE_SOURCES:
+        raise ValueError(f"Unknown temperature type: {temp_type}")
+    return TEMPERATURE_SOURCES[temp_type].get("units", "K")  # type: ignore[return-value]
 
 
 def _build_raster_bytes(
@@ -138,34 +150,36 @@ class NetCDFService:
         path: Path = NetCDFService.resolve_nc_path(date_obj, temp_type)
 
         try:
-            with xr.open_dataset(path, engine="netcdf4", chunks={}) as ds:
-                if variable not in ds.data_vars:
-                    logger.error(
-                        "Variable not found",
-                        extra={"variable": variable, "path": str(path)},
-                    )
-                    raise VariableNotFoundError(variable, str(path))
+            with _HDF5_LOCK:
+                with xr.open_dataset(path, engine="netcdf4") as ds:
+                    if variable not in ds.data_vars:
+                        logger.error(
+                            "Variable not found",
+                            extra={"variable": variable, "path": str(path)},
+                        )
+                        raise VariableNotFoundError(variable, str(path))
 
-                data_array = ds[variable]
+                    data_array = ds[variable]
 
-                if time_index >= data_array.sizes.get("time", 1):
-                    logger.error(
-                        "Time index out of range",
-                        extra={"index": time_index, "max": data_array.sizes.get("time", 1) - 1},
-                    )
-                    raise InvalidTimeIndexError(
-                        time_index, data_array.sizes.get("time", 1) - 1
-                    )
+                    if time_index >= data_array.sizes.get("time", 1):
+                        logger.error(
+                            "Time index out of range",
+                            extra={"index": time_index, "max": data_array.sizes.get("time", 1) - 1},
+                        )
+                        raise InvalidTimeIndexError(
+                            time_index, data_array.sizes.get("time", 1) - 1
+                        )
 
-                slice_data: np.ndarray = data_array.isel(time=time_index).values.astype(
-                    np.float32
-                )
-                temperature_cache.set(cache_key, slice_data)
-                return slice_data
+                    slice_data: np.ndarray = data_array.isel(time=time_index).values.astype(
+                        np.float32
+                    )
 
         except FileNotFoundError as exc:
             logger.error("NetCDF file not found", extra={"path": str(path)})
             raise DatasetNotFoundError(date_obj) from exc
+
+        temperature_cache.set(cache_key, slice_data)
+        return slice_data
 
     @staticmethod
     def get_colorscale_info(
@@ -179,7 +193,7 @@ class NetCDFService:
             min_value=float(np.min(valid)),
             max_value=float(np.max(valid)),
             mean_value=float(np.mean(valid)),
-            units="K",
+            units=_get_units(temp_type),
         )
 
     @staticmethod
@@ -316,6 +330,30 @@ class NetCDFService:
         return sorted(results, key=lambda x: x[0])
 
     @staticmethod
+    def _get_aggregated_data(
+        start_date: date,
+        end_date: date,
+        aggregation: str,
+        time_index: int,
+        temp_type: str,
+    ) -> np.ndarray:
+        """Load, aggregate, and cache the result so zoom changes skip re-aggregation."""
+        cache_key = f"agg_{start_date}_{end_date}_{aggregation}_{time_index}_{temp_type}"
+        cached = temperature_cache.get(cache_key)
+        if cached is not None:
+            logger.debug(f"Aggregation cache hit: {cache_key}")
+            return cached
+
+        date_data_pairs = NetCDFService.get_temperature_slice_range(
+            start_date, end_date, time_index, temp_type
+        )
+        aggregated = AggregationService.aggregate(
+            date_data_pairs, aggregation, _get_variable(temp_type)
+        )
+        temperature_cache.set(cache_key, aggregated.data)
+        return aggregated.data
+
+    @staticmethod
     def get_raster_bytes_aggregated(
         start_date: date,
         end_date: date,
@@ -325,13 +363,10 @@ class NetCDFService:
         continent: str | None = None,
         zoom_level: int | None = None,
     ) -> bytes:
-        date_data_pairs = NetCDFService.get_temperature_slice_range(
-            start_date, end_date, time_index, temp_type
+        data = NetCDFService._get_aggregated_data(
+            start_date, end_date, aggregation, time_index, temp_type
         )
-        aggregated = AggregationService.aggregate(
-            date_data_pairs, aggregation, _get_variable(temp_type)
-        )
-        return _build_raster_bytes(aggregated.data, continent, zoom_level)
+        return _build_raster_bytes(data, continent, zoom_level)
 
     @staticmethod
     def get_colorscale_info_aggregated(
@@ -341,16 +376,13 @@ class NetCDFService:
         time_index: int = 0,
         temp_type: str = "mean",
     ) -> ColorscaleInfo:
-        date_data_pairs = NetCDFService.get_temperature_slice_range(
-            start_date, end_date, time_index, temp_type
+        data = NetCDFService._get_aggregated_data(
+            start_date, end_date, aggregation, time_index, temp_type
         )
-        aggregated = AggregationService.aggregate(
-            date_data_pairs, aggregation, _get_variable(temp_type)
-        )
-        valid = aggregated.data[~np.isnan(aggregated.data)]
+        valid = data[~np.isnan(data)]
         return ColorscaleInfo(
             min_value=float(np.min(valid)),
             max_value=float(np.max(valid)),
             mean_value=float(np.mean(valid)),
-            units="K",
+            units=_get_units(temp_type),
         )

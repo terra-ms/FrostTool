@@ -7,6 +7,7 @@ from dash import html
 
 from frontend.components.map_component import API, get_map_html, get_map_html_with_initial_raster
 from frontend.config import API_BASE_URL
+from frontend.utils import kelvin_to_celsius
 
 
 # ---------------------------------------------------------------------------
@@ -171,9 +172,9 @@ def render_heatmap(
         html.Div(f"Type       : {temp_type_label}"),
         html.Div("Aggregation: Minimum (frost detection)"),
         html.Div("Units      : °C"),
-        html.Div(f"Min        : {cs['min_value'] - 273.15:.3f}"),
-        html.Div(f"Max        : {cs['max_value'] - 273.15:.3f}"),
-        html.Div(f"Mean       : {cs['mean_value'] - 273.15:.3f}"),
+        html.Div(f"Min        : {kelvin_to_celsius(cs['min_value']):.3f}"),
+        html.Div(f"Max        : {kelvin_to_celsius(cs['max_value']):.3f}"),
+        html.Div(f"Mean       : {kelvin_to_celsius(cs['mean_value']):.3f}"),
     ]
 
     trigger: dict = {

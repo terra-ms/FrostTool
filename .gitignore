@@ -53,6 +53,7 @@ db.sqlite3
 .pytest_cache/
 .coverage
 htmlcov/
+.cache
 
 # OS
 .DS_Store

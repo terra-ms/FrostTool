@@ -5,6 +5,7 @@ import requests
 from dash import Input, Output, State, callback, callback_context
 
 from frontend.components.map_component import API
+from frontend.utils import kelvin_to_celsius
 
 _EMPTY_LAYOUT: dict = dict(
     template="plotly_dark",
@@ -101,7 +102,7 @@ def update_timeseries_graph(
         ts_data = response.json()
 
         dates = [d["date"] for d in ts_data["data"]]
-        values_c = [d["value"] - 273.15 for d in ts_data["data"]]
+        values_c = [kelvin_to_celsius(d["value"]) for d in ts_data["data"]]
 
         fig = go.Figure()
         fig.add_trace(

@@ -7,11 +7,13 @@ TEMPERATURE_SOURCES: dict[str, dict[str, Path | str]] = {
         "path": Path(os.environ.get("DATA_ROOT_MEAN", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2")),
         "variable": "Temperature_Air_2m_Mean_24h",
         "label": "Mean (24h)",
+        "units": "K",
     },
     "min": {
         "path": Path(os.environ.get("DATA_ROOT_MIN", r"C:\Olivier\Terra local\data\AgERA5\tmin_v2")),
         "variable": "Temperature_Air_2m_Min_24h",
         "label": "Minimum (24h)",
+        "units": "K",
     },
 }
 
@@ -21,6 +23,10 @@ DEFAULT_TEMP_TYPE: str = "mean"
 # Legacy support
 DATA_ROOT: Path = TEMPERATURE_SOURCES[DEFAULT_TEMP_TYPE]["path"]
 VARIABLE: str = TEMPERATURE_SOURCES[DEFAULT_TEMP_TYPE]["variable"]
+
+CACHE_DIR: Path = Path(
+    os.environ.get("CACHE_DIR", str(Path(__file__).parent.parent.parent / ".cache"))
+)
 
 CONTINENTS: dict[str, tuple[float, float, float, float]] = {
     "Africa": (-35, 37, -18, 52),

@@ -23,26 +23,26 @@ def _sources(path: Path, variable: str = VARIABLE) -> dict:
 # ---------------------------------------------------------------------------
 
 class TestTemperatureCache:
-    def test_miss_returns_none(self) -> None:
+    def test_miss_returns_none(self, tmp_path) -> None:
         from backend.services.cache_service import TemperatureCache
 
-        cache = TemperatureCache(ttl_seconds=60)
+        cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         assert cache.get("nonexistent") is None
 
-    def test_set_and_get(self) -> None:
+    def test_set_and_get(self, tmp_path) -> None:
         from backend.services.cache_service import TemperatureCache
 
-        cache = TemperatureCache(ttl_seconds=60)
+        cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         arr = np.array([1.0, 2.0], dtype=np.float32)
         cache.set("k", arr)
         result = cache.get("k")
         assert result is not None
         np.testing.assert_array_equal(result, arr)
 
-    def test_expired_entry_returns_none(self) -> None:
+    def test_expired_entry_returns_none(self, tmp_path) -> None:
         from backend.services.cache_service import TemperatureCache
 
-        cache = TemperatureCache(ttl_seconds=0)
+        cache = TemperatureCache(ttl_seconds=0, cache_dir=tmp_path)
         cache.set("k", np.array([1.0]))
         assert cache.get("k") is None
 
@@ -144,11 +144,11 @@ class TestNetCDFServiceResolvePath:
 
 
 class TestNetCDFServiceGetSlice:
-    def test_returns_float32_array(self, data_root: Path, nc_file: Path) -> None:
+    def test_returns_float32_array(self, tmp_path, data_root: Path, nc_file: Path) -> None:
         from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
 
-        fresh_cache = TemperatureCache(ttl_seconds=60)
+        fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
             patch(_SOURCES_TARGET, _sources(data_root)),
             patch("backend.services.netcdf_service.temperature_cache", fresh_cache),
@@ -158,11 +158,11 @@ class TestNetCDFServiceGetSlice:
         assert arr.dtype == np.float32
         assert arr.ndim == 2
 
-    def test_values_in_kelvin_range(self, data_root: Path, nc_file: Path) -> None:
+    def test_values_in_kelvin_range(self, tmp_path, data_root: Path, nc_file: Path) -> None:
         from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
 
-        fresh_cache = TemperatureCache(ttl_seconds=60)
+        fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
             patch(_SOURCES_TARGET, _sources(data_root)),
             patch("backend.services.netcdf_service.temperature_cache", fresh_cache),
@@ -172,11 +172,11 @@ class TestNetCDFServiceGetSlice:
         assert float(np.nanmin(arr)) >= 200.0
         assert float(np.nanmax(arr)) <= 350.0
 
-    def test_cache_hit_returns_same_array(self, data_root: Path, nc_file: Path) -> None:
+    def test_cache_hit_returns_same_array(self, tmp_path, data_root: Path, nc_file: Path) -> None:
         from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
 
-        fresh_cache = TemperatureCache(ttl_seconds=60)
+        fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
             patch(_SOURCES_TARGET, _sources(data_root)),
             patch("backend.services.netcdf_service.temperature_cache", fresh_cache),
@@ -184,16 +184,16 @@ class TestNetCDFServiceGetSlice:
             arr1 = NetCDFService.get_temperature_slice(TEST_DATE, temp_type="mean")
             arr2 = NetCDFService.get_temperature_slice(TEST_DATE, temp_type="mean")
 
-        assert arr1 is arr2  # same object returned from cache
+        np.testing.assert_array_equal(arr1, arr2)  # diskcache deserializes; check values not identity
 
 
 class TestNetCDFServiceColorscale:
-    def test_colorscale_info_fields(self, data_root: Path, nc_file: Path) -> None:
+    def test_colorscale_info_fields(self, tmp_path, data_root: Path, nc_file: Path) -> None:
         from backend.models.domain import ColorscaleInfo
         from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
 
-        fresh_cache = TemperatureCache(ttl_seconds=60)
+        fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
             patch(_SOURCES_TARGET, _sources(data_root)),
             patch("backend.services.netcdf_service.temperature_cache", fresh_cache),
@@ -206,11 +206,11 @@ class TestNetCDFServiceColorscale:
 
 
 class TestNetCDFServiceCellValue:
-    def test_cell_value_is_float(self, data_root: Path, nc_file: Path) -> None:
+    def test_cell_value_is_float(self, tmp_path, data_root: Path, nc_file: Path) -> None:
         from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
 
-        fresh_cache = TemperatureCache(ttl_seconds=60)
+        fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
             patch(_SOURCES_TARGET, _sources(data_root)),
             patch("backend.services.netcdf_service.temperature_cache", fresh_cache),

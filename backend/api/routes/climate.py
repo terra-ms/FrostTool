@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import get_netcdf_service
 from backend.models.domain import ColorscaleInfo
+from backend.services.aggregation_service import VALID_AGGREGATIONS
 from backend.services.netcdf_service import NetCDFService
 from backend.models.schemas import (
     AvailableDatesResponse,
@@ -59,7 +60,7 @@ async def get_raster(
             start_obj: date = date.fromisoformat(start_date)
             end_obj: date = date.fromisoformat(end_date)
             
-            if agg_type not in ("min", "max", "mean"):
+            if agg_type not in VALID_AGGREGATIONS:
                 raise ValueError(f"Invalid aggregation type: {agg_type}")
             
             raster_bytes: bytes = service.get_raster_bytes_aggregated(
@@ -103,7 +104,7 @@ async def get_colorscale(
             start_obj: date = date.fromisoformat(start_date)
             end_obj: date = date.fromisoformat(end_date)
 
-            if agg_type not in ("min", "max", "mean"):
+            if agg_type not in VALID_AGGREGATIONS:
                 raise ValueError(f"Invalid aggregation type: {agg_type}")
 
             info: ColorscaleInfo = service.get_colorscale_info_aggregated(
