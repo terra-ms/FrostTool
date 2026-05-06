@@ -28,6 +28,10 @@ CACHE_DIR: Path = Path(
     os.environ.get("CACHE_DIR", str(Path(__file__).parent.parent.parent / ".cache"))
 )
 
+CROPS_CONFIG_PATH: Path = Path(
+    os.environ.get("CROPS_CONFIG", str(Path(__file__).parent.parent.parent / "crops.txt"))
+)
+
 CONTINENTS: dict[str, tuple[float, float, float, float]] = {
     "Africa": (-35, 37, -18, 52),
     "North America": (15, 83, -170, -50),

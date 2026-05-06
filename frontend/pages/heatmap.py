@@ -1,52 +1,52 @@
+import dash
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 
-from frontend.components.controls import create_controls, create_header, create_map_frame
+from frontend.components.controls import create_controls, create_map_frame
 from frontend.components.timeline_graph import create_graph_container
 
+dash.register_page(__name__, path="/", name="Heatmap")
 
-def create_layout() -> dbc.Container:
-    return dbc.Container(
-        fluid=True,
-        style={"background": "#1B6758", "minHeight": "100vh", "padding": "0"},
+
+def layout() -> dbc.Row:
+    return dbc.Row(
+        style={
+            "margin": "0",
+            "height": "calc(100vh - 72px)",
+            "display": "flex",
+            "flexDirection": "column",
+        },
         children=[
-            create_header(),
             dbc.Row(
-                style={
-                    "margin": "0",
-                    "height": "calc(100vh - 72px)",
-                    "display": "flex",
-                    "flexDirection": "column",
-                },
+                style={"margin": "0", "flex": "1", "minHeight": "0"},
                 children=[
-                    dbc.Row(
-                        style={"margin": "0", "flex": "1", "minHeight": "0"},
+                    create_controls(),
+                    dbc.Col(
+                        width=9,
+                        style={
+                            "padding": "0",
+                            "display": "flex",
+                            "flexDirection": "column",
+                        },
                         children=[
-                            create_controls(),
-                            dbc.Col(
-                                width=9,
-                                style={"padding": "0", "display": "flex", "flexDirection": "column"},
+                            html.Div(
+                                style={
+                                    "flex": "1",
+                                    "minHeight": "0",
+                                    "position": "relative",
+                                },
                                 children=[
-                                    html.Div(
-                                        style={
-                                            "flex": "1",
-                                            "minHeight": "0",
-                                            "position": "relative",
-                                        },
-                                        children=[
-                                            create_map_frame(),
-                                            dcc.Store(id="raster-trigger"),
-                                            dcc.Store(id="clicked-coordinate"),
-                                            dcc.Store(id="coordinate-intermediate"),
-                                            html.Button(
-                                                id="coordinate-trigger",
-                                                style={"display": "none"},
-                                            ),
-                                        ],
+                                    create_map_frame(),
+                                    dcc.Store(id="raster-trigger"),
+                                    dcc.Store(id="clicked-coordinate"),
+                                    dcc.Store(id="coordinate-intermediate"),
+                                    html.Button(
+                                        id="coordinate-trigger",
+                                        style={"display": "none"},
                                     ),
-                                    create_graph_container(),
                                 ],
                             ),
+                            create_graph_container(),
                         ],
                     ),
                 ],

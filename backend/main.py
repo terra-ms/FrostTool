@@ -9,10 +9,12 @@ from fastapi.middleware.cors import CORSMiddleware
 # Handle imports for both direct execution and module invocation
 try:
     from .api.routes.climate import router as climate_router
+    from .api.routes.gdd import router as gdd_router
 except ImportError:
     # Add parent directory to path for direct execution
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from backend.api.routes.climate import router as climate_router
+    from backend.api.routes.gdd import router as gdd_router
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -40,6 +42,7 @@ def create_app() -> FastAPI:
     )
     
     app.include_router(climate_router)
+    app.include_router(gdd_router)
     
     return app
 

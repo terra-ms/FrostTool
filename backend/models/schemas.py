@@ -37,6 +37,26 @@ class HealthResponse(BaseModel):
     status: str
 
 
+class CropInfo(BaseModel):
+    name: str
+    display_name: str
+
+
+class CropsResponse(BaseModel):
+    crops: list[CropInfo]
+
+
+class GDDColorscaleResponse(BaseModel):
+    min_value: int
+    max_value: int
+
+
+class GDDAvailableYearsResponse(BaseModel):
+    years: list[int]
+    min_year: int
+    max_year: int
+
+
 class ContinentBounds(BaseModel):
     min_lat: float
     max_lat: float

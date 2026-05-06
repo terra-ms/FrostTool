@@ -109,6 +109,7 @@
             return getAbsoluteColor(v);
           },
           resolution: 256,
+          updateWhenZooming: false,
         });
 
         currentLayer.addTo(map);

@@ -113,7 +113,20 @@ def create_controls() -> dbc.Col:
     )
 
 
-def create_header() -> html.Div:
+_NAV_LINK_STYLE: dict = {
+    "fontFamily": "'Space Mono',monospace",
+    "fontSize": "11px",
+    "letterSpacing": "1px",
+    "color": "#D6CDA4",
+    "textDecoration": "none",
+    "padding": "6px 14px",
+    "borderRadius": "6px",
+    "border": "1px solid rgba(214,205,164,0.35)",
+    "transition": "background 0.2s",
+}
+
+
+def create_shared_header() -> html.Div:
     return html.Div(
         style={
             "background": "linear-gradient(135deg,#1B6758,#3C8361)",
@@ -122,13 +135,16 @@ def create_header() -> html.Div:
             "display": "flex",
             "alignItems": "center",
             "gap": "18px",
+            "height": "72px",
+            "boxSizing": "border-box",
         },
         children=[
             html.Span("🌡", style={"fontSize": "30px"}),
             html.Div(
-                [
+                style={"flex": "1"},
+                children=[
                     html.H1(
-                        "AgERA5 Temperature Heatmap",
+                        "AgERA5 Climate Tool",
                         style={
                             "fontFamily": "'Syne',sans-serif",
                             "fontWeight": "800",
@@ -146,7 +162,14 @@ def create_header() -> html.Div:
                             "margin": "3px 0 0",
                         },
                     ),
-                ]
+                ],
+            ),
+            html.Nav(
+                style={"display": "flex", "gap": "10px"},
+                children=[
+                    dcc.Link("HEATMAP", href="/", style=_NAV_LINK_STYLE),
+                    dcc.Link("FROST RISK", href="/gdd", style=_NAV_LINK_STYLE),
+                ],
             ),
         ],
     )

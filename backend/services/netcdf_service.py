@@ -109,6 +109,44 @@ def _build_raster_bytes(
     return output.getvalue()
 
 
+def _build_raster_bytes_preclipped(
+    data: np.ndarray,
+    min_lat: float,
+    max_lat: float,
+    min_lon: float,
+    max_lon: float,
+    zoom_level: int | None = None,
+) -> bytes:
+    """Encode a pre-clipped region array as a GeoTIFF without re-clipping."""
+    clipped = data.astype(np.float32)
+
+    if zoom_level is not None:
+        if zoom_level < 4:
+            clipped = clipped[::4, ::4]
+        elif zoom_level < 8:
+            clipped = clipped[::2, ::2]
+
+    h, w = clipped.shape
+    transform = from_bounds(min_lon, min_lat, max_lon, max_lat, w, h)
+
+    output = io.BytesIO()
+    with rasterio.open(
+        output,
+        "w",
+        driver="GTiff",
+        height=h,
+        width=w,
+        count=1,
+        dtype=clipped.dtype,
+        crs=CRS.from_epsg(4326),
+        transform=transform,
+    ) as dst:
+        dst.write(clipped, 1)
+
+    output.seek(0)
+    return output.getvalue()
+
+
 class NetCDFService:
     @staticmethod
     def resolve_nc_path(date_obj: date, temp_type: str = "mean") -> Path:
