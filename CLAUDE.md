@@ -2,7 +2,12 @@
 
 ## Project Overview
 
-Full-stack geospatial data application for visualising global climate data from NetCDF (`.nc`) files. The backend is a **FastAPI** REST API; the frontend is a **Dash** app rendering interactive **Leaflet** heatmaps via `georaster-layer-for-leaflet`. The architecture must remain fast and expandable — future features include multi-parameter support, regional crop-damage aggregation, and timeline graphs.
+Full-stack geospatial data application for visualising global climate data from NetCDF (`.nc`) files. The backend is a **FastAPI** REST API; the frontend is a **Dash** app rendering interactive **Leaflet** heatmaps via `georaster-layer-for-leaflet`. The architecture must remain fast and expandable — upcoming features include GDD (Growing Degree Days) per crop type and hosting on S3 + Fargate.
+
+**Running locally:**
+- Backend: `python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000` (from project root with `PYTHONPATH=.`)
+- Frontend: `python frontend/app.py` (Dash on port 8050)
+- Backend must be running before starting the frontend.
 
 ---
 
@@ -13,7 +18,7 @@ Full-stack geospatial data application for visualising global climate data from 
 | Backend   | Python 3.11+, FastAPI, Uvicorn                          |
 | Data I/O  | xarray, netCDF4, numpy, rasterio                        |
 | Frontend  | Dash (Plotly), dash-leaflet, georaster-layer-for-leaflet|
-| Caching   | functools.lru_cache / diskcache for heavy NetCDF reads  |
+| Caching   | Two-level: in-memory LRU (60 entries) + diskcache (20 GB, persistent) |
 | Testing   | pytest, httpx (async FastAPI tests)                     |
 | Linting   | ruff, black, mypy (strict)                              |
 
@@ -48,9 +53,10 @@ project-root/
 │   │   ├── map_component.py     # Leaflet map wrapper
 │   │   ├── timeline_graph.py    # Timeline/graph component
 │   │   └── controls.py          # Parameter/filter controls
+│   ├── utils.py                 # Shared helpers (e.g. kelvin_to_celsius)
 │   └── callbacks/
-│       ├── map_callbacks.py     # Map interactivity callbacks
-│       └── graph_callbacks.py   # Graph update callbacks
+│       ├── map_callbacks.py     # Map render, coordinate bridge, continent/temp-type selection
+│       └── graph_callbacks.py   # Timeseries graph (triggered by map coordinate click)
 ├── data/                        # Local data root (never committed — see DATA_ROOT)
 ├── tests/
 │   ├── backend/
@@ -125,11 +131,11 @@ async def get_temperature(
 
 ### NetCDF / Data Processing
 
-- Always open NetCDF files with `xarray.open_dataset(..., engine="netcdf4", chunks={})` (lazy loading via Dask).
+- Open NetCDF files with `xarray.open_dataset(path, engine="netcdf4")` — **without** `chunks={}`. Dask lazy-loading was removed because `.values` must be called inside the `_HDF5_LOCK` to guarantee thread safety with `ThreadPoolExecutor`.
+- All file reads must be wrapped in `_HDF5_LOCK` (defined in `netcdf_service.py`). HDF5/NetCDF4 is not thread-safe; the lock serialises opens so parallel cache-miss loads don't corrupt state.
 - Close datasets explicitly or use context managers; never leave file handles open.
 - Clip, downsample, or slice data **server-side** before sending to the frontend — never ship a raw full-resolution grid to the browser.
-- Tile or chunk large grids when streaming to georaster-layer-for-leaflet.
-- Cache expensive computed slices (reprojection, aggregation) using `diskcache` with a TTL.
+- Cache expensive computed slices using `temperature_cache` (two-level: memory LRU + diskcache). Each global slice is ~25 MB; the diskcache `size_limit` is set to **20 GB** — do not lower it or large date ranges will cause evictions and make every timeseries click slow.
 
 ### Naming Conventions
 
@@ -149,77 +155,55 @@ async def get_temperature(
 
 ### Dataset
 
-The application uses **AgERA5** daily climate rasters. The current primary variable is:
+The application uses **AgERA5** daily climate rasters. Two temperature variables are supported:
 
-```python
-VARIABLE = "Temperature_Air_2m_Mean_24h"   # AgERA5 variable name — do not rename
-```
+| Key    | NetCDF variable name                  | Local data root (default)                              |
+|--------|---------------------------------------|--------------------------------------------------------|
+| `mean` | `Temperature_Air_2m_Mean_24h`         | `C:\Olivier\Terra local\data\AgERA5\tmean_v2`          |
+| `min`  | `Temperature_Air_2m_Min_24h`          | `C:\Olivier\Terra local\data\AgERA5\tmin_v2`           |
 
-### Directory Layout on Disk
+Data is available locally for **1979–2022**. All values are in **Kelvin**; the frontend converts to °C for display.
+
+### Directory Layout on Disk (actual)
 
 ```
 DATA_ROOT/
 └── YYYY/
-    └── MM/
-        └── <any_filename_containing_YYYY-MM-DD>.nc
+    └── <filename_containing_YYYYMMDD>.nc
 ```
 
-Example:
-```
-/mnt/data/agera5/
-└── 2023/
-    └── 07/
-        └── AgERA5_Temperature_Air_2m_Mean_24h_2023-07-15.nc
-```
+**Important:** there is no `MM/` subfolder. Files sit directly under the year folder. The date in the filename uses `YYYYMMDD` format (no hyphens).
 
-- `DATA_ROOT` is set via the environment variable `DATA_ROOT`.
-- The default fallback for local development is `C:\Olivier\Terra local\data\AgERA5\tmean_v2` (Windows). Always use `Path` so the code works cross-platform.
-- One `.nc` file per calendar day; the filename may be any string as long as it contains the date in `YYYY-MM-DD` format.
+Real example:
+```
+C:\Olivier\Terra local\data\AgERA5\tmean_v2\
+└── 2020\
+    └── Temperature-Air-2m_Mean-24h_C3S-glob-agric_AgERA5_20200101_final-v2.0.0.nc
+```
 
 ### Configuration (`core/config.py`)
 
-```python
-from pathlib import Path
-import os
-
-DATA_ROOT = Path(os.environ.get("DATA_ROOT", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2"))
-VARIABLE   = "Temperature_Air_2m_Mean_24h"
-```
-
-- `DATA_ROOT` and `VARIABLE` are the only two values that need to change when switching datasets.
-- Never import `os.environ` or construct data paths outside of `core/config.py`.
+Both data roots, variable names, and cache settings are centralised in `TEMPERATURE_SOURCES`. The relevant env vars are `DATA_ROOT_MEAN`, `DATA_ROOT_MIN`, and `CACHE_DIR`. Never import `os.environ` or construct data paths outside of `core/config.py`.
 
 ### File Resolution
 
-All path-building logic lives exclusively in `NetCDFService`. The canonical resolver:
+All path-building lives in `NetCDFService.resolve_nc_path`. The actual implementation:
 
 ```python
-def resolve_nc_path(date: datetime.date) -> Path:
-    """Return the .nc file path for a given date.
-
-    Searches DATA_ROOT/YYYY/MM/ for any file whose name contains the
-    ISO date string (YYYY-MM-DD).
-
-    Raises:
-        DatasetNotFoundError: If no matching file exists for that date.
-    """
-    folder = DATA_ROOT / f"{date.year:04d}" / f"{date.month:02d}"
-    pattern = date.isoformat()          # "YYYY-MM-DD"
-    matches = list(folder.glob(f"*{pattern}*.nc"))
-    if not matches:
-        raise DatasetNotFoundError(date)
-    return matches[0]
+folder = data_root / f"{date_obj.year:04d}"          # YYYY only — no MM subfolder
+pattern = date_obj.isoformat().replace("-", "")       # "YYYYMMDD"
+matches = list(folder.glob(f"*{pattern}*.nc"))
 ```
 
-- Always use `date.isoformat()` for glob patterns — never build date strings manually.
-- If multiple files match the same date (unexpected), log a warning and use the first match.
-- API endpoints accept dates as `YYYY-MM-DD` strings; always parse them to `datetime.date` in the route handler before passing to the service.
+- The glob pattern is `YYYYMMDD` (hyphens stripped), matching the real filenames.
+- API endpoints accept dates as `YYYY-MM-DD` strings; parse to `datetime.date` in the route before passing to the service.
+- If multiple files match the same date, log a warning and use the first match.
 
 ### What NOT to Do (data-specific)
 
-- Do not hardcode year/month folder names — always derive them from the `datetime.date` object.
-- Do not scan `DATA_ROOT` recursively at startup to build an index; resolve paths lazily per request.
-- Do not assume the filename follows any specific prefix or suffix beyond containing the ISO date.
+- Do not add a `MM/` subfolder level — the actual layout has none.
+- Do not use `date.isoformat()` directly as the glob pattern; strip hyphens first (`replace("-", "")`).
+- Do not scan `DATA_ROOT` recursively at startup; resolve paths lazily per request.
 - Do not commit any `.nc` files or reference absolute local paths outside `core/config.py`.
 
 ---
@@ -240,7 +224,8 @@ These rules exist so that new parameters (wind, precipitation, soil moisture) an
 
 - **Lazy-load** NetCDF files; never load an entire file into memory upfront.
 - **Downsample** grids to match the current map zoom level (coarser grid at low zoom, finer at high zoom).
-- **Cache** processed tiles and aggregation results; invalidate cache only when source files change (use file mtime as cache key).
+- **Cache** processed tiles and aggregation results with `temperature_cache`. Cache keys for individual slices: `"{date}_{time_index}_{temp_type}"`. Cache keys for aggregations: `"agg_{start}_{end}_{agg}_{time_index}_{temp_type}"`. The aggregation key is shared between `/raster` and `/colorscale` via `_get_aggregated_data()` — both endpoints hit the same cached numpy array.
+- **Expected timings (local SSD):** first render of an uncached date range loads from NC files (~200 ms/file serialised through `_HDF5_LOCK`); second render and timeseries are disk-cache hits (~100 ms/entry) or memory hits (~1 ms/entry). For a 180-day range, first render ≈ 36 s; subsequent ≈ 3–7 s.
 - Use `numpy` vectorised operations — avoid Python-level loops over grid cells.
 - Prefer `float32` over `float64` for grid arrays sent to the frontend.
 - Profile with `py-spy` or `cProfile` before optimising; do not pre-optimise without evidence of a bottleneck.
@@ -284,6 +269,36 @@ except FileNotFoundError as exc:
 
 ---
 
+## Frontend: Map ↔ Dash Coordinate Bridge
+
+The Leaflet map runs inside an `<iframe>` (`srcDoc`). To relay a map click to Dash callbacks:
+
+1. `map.js` fires `window.parent.postMessage({ type: 'coordinateClicked', lat, lon, date, dateRange }, '*')` on click.
+2. A `clientside_callback` in `map_callbacks.py` listens for the message and writes to the `coordinate-intermediate` store.
+3. A server-side `@callback` copies `coordinate-intermediate` → `clicked-coordinate`.
+4. `graph_callbacks.update_timeseries_graph` triggers on `clicked-coordinate` and reads the date range from the `raster-trigger` store (set by the last "Render Heatmap" click).
+
+The Leaflet map also has a `postMessage` listener for `{ type: 'loadRaster' }` commands from the parent frame, used for future optimisation (load raster without regenerating the full iframe `srcDoc`).
+
+---
+
+## Upcoming Feature: GDD (Growing Degree Days)
+
+**Priority: Must.** GDD measures the daily thermal energy available for crop growth above a crop-specific base temperature. It provides a biological clock for predicting crop development stages.
+
+**Formula:**
+```
+GDD = max(((Tmax + Tmin) / 2) − Tbase, 0)
+```
+
+Accumulated over a date range this gives cumulative GDD. Key design points:
+- Requires both `tmax` and `tmin` AgERA5 variables (a third `TEMPERATURE_SOURCES` entry may be needed).
+- `Tbase` is crop-specific (e.g. maize = 10°C, wheat = 0°C) and must be configurable per request.
+- The result is a per-cell cumulative GDD raster and a timeseries of daily GDD at a clicked coordinate.
+- Follow the same `AggregationService` / `_get_aggregated_data` cache pattern as the existing min/max/mean aggregation.
+
+---
+
 ## What NOT to Do
 
 - Do not mix data-processing logic into route handlers or Dash callbacks.
@@ -293,3 +308,5 @@ except FileNotFoundError as exc:
 - Do not use `Any` in type hints without a comment explaining why it is unavoidable.
 - Do not create God-classes or God-modules; if a file exceeds ~300 lines, split it.
 - Do not return raw numpy arrays from API endpoints — always serialise to a defined Pydantic schema or a tiled binary format.
+- Do not lower the diskcache `size_limit` below 20 GB — each global raster slice is ~25 MB and a 180-day range needs ~4.5 GB per temperature type.
+- Do not remove `_HDF5_LOCK` from `netcdf_service.py` — concurrent HDF5 reads without it will corrupt file state under `ThreadPoolExecutor`.
