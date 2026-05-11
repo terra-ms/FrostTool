@@ -1,16 +1,10 @@
-import logging
-
 import dash
-import requests
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 
 from frontend.components.gdd_map_component import create_gdd_map_frame
-from frontend.config import API_BASE_URL
 
 dash.register_page(__name__, path="/gdd", name="Frost Risk")
-
-logger = logging.getLogger(__name__)
 
 _LABEL_STYLE: dict = {
     "fontFamily": "'Space Mono',monospace",
@@ -49,40 +43,7 @@ _LEGEND_ITEMS = [
 ]
 
 
-def _fetch_crop_options() -> list[dict]:
-    try:
-        r = requests.get(f"{API_BASE_URL}/gdd/crops", timeout=5)
-        r.raise_for_status()
-        return [
-            {"label": c["display_name"], "value": c["name"]}
-            for c in r.json()["crops"]
-        ]
-    except Exception:
-        logger.warning("Could not fetch crop list from backend; using defaults.")
-        return [{"label": "Grapevine", "value": "grapevine"}]
-
-
-def _fetch_year_options() -> tuple[list[dict], int]:
-    """Returns (dropdown options, default year). Falls back to 1979–2007 if API is unreachable."""
-    try:
-        r = requests.get(f"{API_BASE_URL}/gdd/available-years", timeout=5)
-        r.raise_for_status()
-        data = r.json()
-        years = data["years"]
-        options = [{"label": str(y), "value": y} for y in reversed(years)]
-        default = data["max_year"]
-        return options, default
-    except Exception:
-        logger.warning("Could not fetch GDD available years; falling back to 1979–2007.")
-        options = [{"label": str(y), "value": y} for y in range(2007, 1978, -1)]
-        return options, 2007
-
-
 def layout() -> dbc.Row:
-    crop_options = _fetch_crop_options()
-    default_crop = crop_options[0]["value"] if crop_options else None
-    year_options, default_year = _fetch_year_options()
-
     return dbc.Row(
         style={
             "margin": "0",
@@ -97,18 +58,20 @@ def layout() -> dbc.Row:
                     html.H6("CROP", style=_LABEL_STYLE),
                     dcc.Dropdown(
                         id="gdd-crop-selector",
-                        options=crop_options,
-                        value=default_crop,
+                        options=[],
+                        value=None,
                         clearable=False,
+                        placeholder="Loading…",
                         style={"width": "100%", "marginBottom": "12px"},
                     ),
                     html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
                     html.H6("YEAR", style=_LABEL_STYLE),
                     dcc.Dropdown(
                         id="gdd-year-selector",
-                        options=year_options,
-                        value=default_year,
+                        options=[],
+                        value=None,
                         clearable=False,
+                        placeholder="Loading…",
                         style={"width": "100%", "marginBottom": "12px"},
                     ),
                     html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),

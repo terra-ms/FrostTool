@@ -16,19 +16,19 @@
   let currentYear = null;
   let currentCrop = null;
 
-  // Frost-event count colour scale:
+  // Frost-event count colour scale (solid colours — transparency is handled by layer opacity):
   //  < 0  → light grey  (never reached budbreak — too cold for crop to develop)
   //    0  → green       (reached budbreak, no frost events)
   //    1  → blue        (1 frost event)
   //   2+  → orange → dark red (increasing risk)
   const getFrostColor = (count) => {
     if (count == null || isNaN(count)) return null;
-    if (count < 0) return 'rgba(190, 190, 190, 0.60)';
+    if (count < 0) return '#bebebe';
     const c = Math.round(count);
-    if (c === 0) return 'rgba(45, 138, 78, 0.55)';
-    if (c === 1) return 'rgba(59, 130, 246, 0.75)';
+    if (c === 0) return '#2d8a4e';
+    if (c === 1) return '#3b82f6';
     const t = Math.min((c - 2) / 6, 1);
-    return chroma.mix('#f97316', '#7f1d1d', t, 'lab').alpha(0.82).css();
+    return chroma.mix('#f97316', '#7f1d1d', t, 'lab').hex();
   };
 
   window.loadGDDRaster = function (baseUrl, year, crop) {
@@ -53,7 +53,7 @@
 
         currentLayer = new GeoRasterLayer({
           georaster,
-          opacity: 1,
+          opacity: 0.75,
           pixelValuesToColorFn: values => getFrostColor(values[0]),
           resolution: 256,
           updateWhenZooming: false,
