@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-05-19
+Last updated: 2026-05-19 (session 2)
 
 ---
 
@@ -248,8 +248,8 @@ The app serves requests immediately; the warm-up only affects first-render laten
 - **Render flow:** button click → `gdd_callbacks.py` builds URL `/gdd/raster?year=…&crop=…` → replaces iframe `srcDoc` with HTML that auto-calls `window.loadGDDRaster(url, year, crop)` after 100 ms.
 - **Coordinate bridge:** mirrors the heatmap approach. `gdd_map.js` sends a `gddCoordinateClicked` postMessage on click (includes `lat`, `lon`, `year`, `crop` — click is a no-op if no raster has been rendered yet). A `clientside_callback` writes to `gdd-coordinate-intermediate`; a server callback syncs to `gdd-clicked-coordinate`.
 - **GDD timeseries graph panel:** slides up (30% height) on cell click. Dual-axis Plotly chart:
-  - Left axis (green): cumulative GDD curve with a dashed budbreak threshold line and a dotted vertical marker at the budbreak date (or none if never reached).
-  - Right axis (blue): daily Tmin curve with a dashed frost threshold line and orange × markers on each frost event after budbreak.
+  - Left axis (blue): daily Tmin curve with a dashed frost threshold line and orange × markers on each frost event after budbreak.
+  - Right axis (green): cumulative GDD curve with a dashed budbreak threshold line and a dotted vertical marker at the budbreak date (or none if never reached).
   - Closeable via ✕ button.
 
 ---
@@ -266,9 +266,15 @@ Page layouts use `height: calc(100vh - 72px)` to fill below the header.
 
 ## Known open issues / next priorities
 
-**First-ever startup is still slow (~8–10 min) when no `.npz` files exist yet.**
-Once all precomputed files are generated (after the first full warm-up), every subsequent startup loads from disk in seconds. The slow path is only hit once per year×crop combo — or again if `.npz` files are manually deleted to force regeneration. Potential optimisations for the initial compute:
-- Reduce per-file read overhead (lazy-loading only the required spatial slice rather than full global arrays)
+**GDD map: intermittent missing tile at ~0°–22.5°E when zooming (unresolved)**
+When zooming out on the Frost Risk map, a vertical band roughly covering 0°–22.5°E (one Leaflet tile width at zoom 4) occasionally fails to render. The issue is intermittent and not consistently reproducible. Likely a tile invalidation race condition in `georaster-layer-for-leaflet`. Attempted fixes:
+- Removed `zoom_level` from GDD raster URL (now always full-resolution) — no effect
+- Set `updateWhenZooming: true` on `GeoRasterLayer` — no effect
+Next things to try: `keepBuffer: 4` on `GeoRasterLayer` to widen the tile buffer; calling `currentLayer.redraw()` after zoom animation settles; or switching to a zoom-threshold-based re-render approach (like the heatmap page).
+
+**First-ever startup is slow (~8–10 min) when no `.npz` files exist yet.**
+Once all precomputed files are generated (after the first full warm-up), every subsequent startup loads from disk in seconds. The slow path is only hit once per year×crop combo — or again if `.npz` files are manually deleted to force regeneration. Potential optimisations:
+- Lazy-load only the required spatial slice rather than full global arrays
 - Parallelise across years rather than serialising through `_HDF5_LOCK` per file
 
 **For S3 deployment:** upload the `precomputed/` folder to S3 alongside the NetCDF data. The backend only needs to swap local `Path` I/O for `boto3` reads in `_read_year_stack` / `_read_gdd_result` — everything else is unchanged.

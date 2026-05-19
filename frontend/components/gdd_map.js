@@ -11,7 +11,7 @@
 
   let currentLayer = null;
   let isLoading = false;
-  let lastZoom = null;
+  let hasRendered = false;
   let currentRasterUrl = null;
   let currentYear = null;
   let currentCrop = null;
@@ -40,8 +40,7 @@
 
     document.getElementById('loading').style.display = 'block';
 
-    const zoom = map.getZoom();
-    const bustUrl = baseUrl + '&zoom_level=' + zoom + '&_cache=' + Date.now();
+    const bustUrl = baseUrl + '&_cache=' + Date.now();
     const prevLayer = currentLayer;
     currentLayer = null;
 
@@ -56,14 +55,14 @@
           opacity: 0.75,
           pixelValuesToColorFn: values => getFrostColor(values[0]),
           resolution: 256,
-          updateWhenZooming: false,
+          updateWhenZooming: true,
         });
         currentLayer.addTo(map);
 
-        if (lastZoom === null) {
+        if (!hasRendered) {
           map.fitBounds(currentLayer.getBounds());
         }
-        lastZoom = zoom;
+        hasRendered = true;
 
         const info = document.getElementById('render-info');
         info.textContent = year + '  ·  ' + crop.charAt(0).toUpperCase() + crop.slice(1);
@@ -82,20 +81,6 @@
       });
   };
 
-  // Zoom: re-fetch when crossing resolution thresholds (same logic as heatmap map)
-  map.on('zoomend', function () {
-    if (!currentRasterUrl || isLoading) return;
-    const newZoom = map.getZoom();
-    let refetch = false;
-    if (lastZoom === null) refetch = true;
-    else if (lastZoom < 4 && newZoom >= 4) refetch = true;
-    else if (lastZoom < 8 && newZoom >= 8) refetch = true;
-    else if (lastZoom >= 8 && newZoom < 8) refetch = true;
-    else if (lastZoom >= 4 && newZoom < 4) refetch = true;
-    if (refetch) {
-      window.loadGDDRaster(currentRasterUrl, currentYear, currentCrop);
-    }
-  });
 
   // Click: send coordinate + current year/crop to parent Dash frame.
   map.on('click', function (e) {

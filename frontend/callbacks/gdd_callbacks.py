@@ -247,67 +247,22 @@ def update_gdd_timeseries(clicked: dict | None) -> go.Figure:
 
     fig = go.Figure()
 
-    # --- Primary trace: cumulative GDD ---
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=gdd_vals,
-        name="Cumulative GDD",
-        line=dict(color="#3C8361", width=2.5),
-        hovertemplate="%{y:.1f} GDD°C<extra></extra>",
-    ))
-
-    # GDD threshold reference line
-    fig.add_shape(
-        type="line",
-        x0=dates[0], x1=dates[-1],
-        y0=gdd_threshold, y1=gdd_threshold,
-        line=dict(dash="dash", color="#2d8a4e", width=1.5),
-        xref="x", yref="y",
-    )
-    fig.add_annotation(
-        x=dates[-1], y=gdd_threshold,
-        text=f"Budbreak ({gdd_threshold:.0f}°C·d)",
-        xanchor="right", yanchor="bottom",
-        font=dict(color="#2d8a4e", size=9),
-        showarrow=False,
-        xref="x", yref="y",
-    )
-
-    # Budbreak vertical marker
-    if budbreak_date:
-        fig.add_shape(
-            type="line",
-            x0=budbreak_date, x1=budbreak_date,
-            y0=0, y1=1,
-            line=dict(dash="dot", color="#2d8a4e", width=1.5),
-            xref="x", yref="paper",
-        )
-        fig.add_annotation(
-            x=budbreak_date, y=0.97,
-            text="Budbreak",
-            xanchor="center", yanchor="top",
-            font=dict(color="#2d8a4e", size=9),
-            showarrow=False,
-            xref="x", yref="paper",
-        )
-
-    # --- Secondary trace: daily Tmin ---
+    # --- Primary trace: daily Tmin ---
     fig.add_trace(go.Scatter(
         x=dates,
         y=tmin_vals,
         name="Daily Tmin",
         line=dict(color="#3b82f6", width=1.5),
         hovertemplate="%{y:.1f}°C<extra></extra>",
-        yaxis="y2",
     ))
 
-    # Frost threshold reference line (secondary axis)
+    # Frost threshold reference line (primary axis)
     fig.add_shape(
         type="line",
         x0=dates[0], x1=dates[-1],
         y0=frost_threshold, y1=frost_threshold,
         line=dict(dash="dash", color="#f97316", width=1.5),
-        xref="x", yref="y2",
+        xref="x", yref="y",
     )
     fig.add_annotation(
         x=dates[-1], y=frost_threshold,
@@ -315,7 +270,7 @@ def update_gdd_timeseries(clicked: dict | None) -> go.Figure:
         xanchor="right", yanchor="top",
         font=dict(color="#f97316", size=9),
         showarrow=False,
-        xref="x", yref="y2",
+        xref="x", yref="y",
     )
 
     # Frost event markers
@@ -337,8 +292,52 @@ def update_gdd_timeseries(clicked: dict | None) -> go.Figure:
                     line=dict(width=2.5, color="#f97316"),
                 ),
                 hovertemplate="<b>Frost: %{x}</b><br>Tmin: %{y:.1f}°C<extra></extra>",
-                yaxis="y2",
             ))
+
+    # --- Secondary trace: cumulative GDD ---
+    fig.add_trace(go.Scatter(
+        x=dates,
+        y=gdd_vals,
+        name="Cumulative GDD",
+        line=dict(color="#3C8361", width=2.5),
+        hovertemplate="%{y:.1f} GDD°C<extra></extra>",
+        yaxis="y2",
+    ))
+
+    # GDD threshold reference line (secondary axis)
+    fig.add_shape(
+        type="line",
+        x0=dates[0], x1=dates[-1],
+        y0=gdd_threshold, y1=gdd_threshold,
+        line=dict(dash="dash", color="#2d8a4e", width=1.5),
+        xref="x", yref="y2",
+    )
+    fig.add_annotation(
+        x=dates[-1], y=gdd_threshold,
+        text=f"Budbreak ({gdd_threshold:.0f}°C·d)",
+        xanchor="right", yanchor="bottom",
+        font=dict(color="#2d8a4e", size=9),
+        showarrow=False,
+        xref="x", yref="y2",
+    )
+
+    # Budbreak vertical marker
+    if budbreak_date:
+        fig.add_shape(
+            type="line",
+            x0=budbreak_date, x1=budbreak_date,
+            y0=0, y1=1,
+            line=dict(dash="dot", color="#2d8a4e", width=1.5),
+            xref="x", yref="paper",
+        )
+        fig.add_annotation(
+            x=budbreak_date, y=0.97,
+            text="Budbreak",
+            xanchor="center", yanchor="top",
+            font=dict(color="#2d8a4e", size=9),
+            showarrow=False,
+            xref="x", yref="paper",
+        )
 
     fig.update_layout(
         **_BASE_LAYOUT,
@@ -350,19 +349,19 @@ def update_gdd_timeseries(clicked: dict | None) -> go.Figure:
         ),
         xaxis=dict(showgrid=False, zeroline=False),
         yaxis=dict(
-            title=dict(text="Cumulative GDD (°C·days)", font=dict(color="#3C8361")),
-            tickfont=dict(color="#3C8361"),
-            gridcolor="rgba(60,131,97,0.15)",
-            zeroline=False,
-        ),
-        yaxis2=dict(
             title=dict(text="Temperature (°C)", font=dict(color="#3b82f6")),
-            overlaying="y",
-            side="right",
             tickfont=dict(color="#3b82f6"),
             gridcolor="rgba(0,0,0,0)",
             zeroline=True,
             zerolinecolor="rgba(59,130,246,0.25)",
+        ),
+        yaxis2=dict(
+            title=dict(text="Cumulative GDD (°C·days)", font=dict(color="#3C8361")),
+            overlaying="y",
+            side="right",
+            tickfont=dict(color="#3C8361"),
+            gridcolor="rgba(60,131,97,0.15)",
+            zeroline=False,
         ),
         legend=dict(
             orientation="h",

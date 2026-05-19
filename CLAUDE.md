@@ -285,20 +285,18 @@ The Leaflet map also has a `postMessage` listener for `{ type: 'loadRaster' }` c
 
 ---
 
-## Upcoming Feature: GDD (Growing Degree Days)
+## GDD (Growing Degree Days) — Implemented
 
-**Priority: Must.** GDD measures the daily thermal energy available for crop growth above a crop-specific base temperature. It provides a biological clock for predicting crop development stages.
+GDD is fully implemented. Key facts for future work:
 
-**Formula:**
-```
-GDD = max(((Tmax + Tmin) / 2) − Tbase, 0)
-```
+- **Season:** 1 Jan – 31 May per year (Europe clip only).
+- **Algorithm:** `gdd_daily = max(Tavg_celsius − base_temp, 0)`; `frost_count` = days where `gdd_accum >= gdd_threshold` AND `Tmin < frost_threshold`.
+- **Timeseries graph axes:** left (blue) = daily Tmin + frost threshold; right (green) = cumulative GDD + budbreak threshold. This is intentional — do not swap back.
+- **Persistence:** `YearStack` and `GDDResult` stored as `.npz` files in `PRECOMPUTED_DIR`. Lookup order: in-memory dict → `.npz` file → compute from NetCDF + save.
+- **Crop config:** `crops.txt` (INI format). Reloaded per request. If parameters change, delete affected `gdd_frost_{year}_{crop}.npz` files manually.
 
-Accumulated over a date range this gives cumulative GDD. Key design points:
-- Requires both `tmax` and `tmin` AgERA5 variables (a third `TEMPERATURE_SOURCES` entry may be needed).
-- `Tbase` is crop-specific (e.g. maize = 10°C, wheat = 0°C) and must be configurable per request.
-- The result is a per-cell cumulative GDD raster and a timeseries of daily GDD at a clicked coordinate.
-- Follow the same `AggregationService` / `_get_aggregated_data` cache pattern as the existing min/max/mean aggregation.
+**Known open bug — GDD map intermittent missing tile:**
+When zooming out on the `/gdd` map, a vertical band at roughly 0°–22.5°E (one Leaflet tile at zoom 4) occasionally fails to render. Root cause is likely a tile invalidation race condition in `georaster-layer-for-leaflet`. Attempted: removing `zoom_level` from raster URL, setting `updateWhenZooming: true`. Neither fixed it. Next things to try: `keepBuffer: 4`, calling `currentLayer.redraw()` after zoom ends, or refetching the raster layer on zoom threshold crossings (like the heatmap page does).
 
 ---
 
