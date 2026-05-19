@@ -2,12 +2,12 @@ import configparser
 import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from pathlib import Path
 from typing import NamedTuple
 
 import numpy as np
 
-from backend.core.config import CONTINENTS, CROPS_CONFIG_PATH, TEMPERATURE_SOURCES
-from backend.services.cache_service import temperature_cache
+from backend.core.config import CONTINENTS, CROPS_CONFIG_PATH, PRECOMPUTED_DIR, TEMPERATURE_SOURCES
 from backend.services.netcdf_service import NetCDFService
 
 logger = logging.getLogger(__name__)
@@ -58,7 +58,69 @@ class GDDTimeseriesResult:
     frost_event_dates: list[str]
 
 
+# In-memory caches — populated from disk on first access, survive for the process lifetime.
+_year_stack_mem: dict[int, YearStack] = {}
+_gdd_result_mem: dict[str, GDDResult] = {}
+
 _available_years: list[int] | None = None
+
+
+# ---------------------------------------------------------------------------
+# Pre-computed file I/O
+# ---------------------------------------------------------------------------
+
+def _stack_path(year: int) -> Path:
+    return PRECOMPUTED_DIR / "year_stacks" / f"gdd_stack_{year}.npz"
+
+
+def _result_path(year: int, crop_name: str) -> Path:
+    return PRECOMPUTED_DIR / "gdd_results" / f"gdd_frost_{year}_{crop_name}.npz"
+
+
+def _write_year_stack(path: Path, stack: YearStack) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path,
+        tmean_stack=stack.tmean_stack,
+        tmin_stack=stack.tmin_stack,
+        bounds=np.array(
+            [stack.bounds.min_lat, stack.bounds.max_lat, stack.bounds.min_lon, stack.bounds.max_lon],
+            dtype=np.float64,
+        ),
+        dates=np.array([d.isoformat() for d in stack.dates]),
+    )
+    logger.info("YearStack saved: %s", path)
+
+
+def _read_year_stack(path: Path) -> YearStack:
+    with np.load(path) as data:
+        b = data["bounds"]
+        bounds = EuropeBounds(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+        dates = [date.fromisoformat(s) for s in data["dates"].tolist()]
+        tmean = data["tmean_stack"]
+        tmin = data["tmin_stack"]
+    return YearStack(tmean_stack=tmean, tmin_stack=tmin, bounds=bounds, dates=dates)
+
+
+def _write_gdd_result(path: Path, result: GDDResult) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(
+        path,
+        frost_count=result.frost_count,
+        bounds=np.array(
+            [result.bounds.min_lat, result.bounds.max_lat, result.bounds.min_lon, result.bounds.max_lon],
+            dtype=np.float64,
+        ),
+    )
+    logger.info("GDDResult saved: %s", path)
+
+
+def _read_gdd_result(path: Path) -> GDDResult:
+    with np.load(path) as data:
+        b = data["bounds"]
+        bounds = EuropeBounds(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+        frost_count = data["frost_count"]
+    return GDDResult(frost_count=frost_count, bounds=bounds)
 
 
 def get_available_gdd_years() -> list[int]:
@@ -110,15 +172,20 @@ def _europe_row_col_slice(lat_size: int, lon_size: int) -> tuple[int, int, int, 
 
 
 def _load_year_stack(year: int) -> YearStack:
-    """Load and cache the Europe-clipped tmean+tmin stacks for a full Jan–May season.
+    """Load the Europe-clipped tmean+tmin stacks for a full Jan–May season.
 
-    This is the expensive step (~60 s cold, <100 ms warm). It is crop-agnostic, so every
-    crop sharing a year reuses the same cached stack instead of re-reading 302 NetCDF files.
+    Priority: in-memory → precomputed .npz file → compute from NetCDF (then save).
+    The .npz file persists indefinitely; delete it manually to force recomputation.
     """
-    cache_key = f"gdd_stack_{year}"
-    cached = temperature_cache.get(cache_key)
-    if isinstance(cached, YearStack):
-        return cached
+    if year in _year_stack_mem:
+        return _year_stack_mem[year]
+
+    path = _stack_path(year)
+    if path.exists():
+        stack = _read_year_stack(path)
+        _year_stack_mem[year] = stack
+        logger.info("YearStack loaded from file: year=%d", year)
+        return stack
 
     start = date(year, *_SEASON_START)
     end = date(year, *_SEASON_END)
@@ -149,13 +216,14 @@ def _load_year_stack(year: int) -> YearStack:
     )
 
     stack = YearStack(tmean_stack=tmean_stack, tmin_stack=tmin_stack, bounds=bounds, dates=common)
-    temperature_cache.set(cache_key, stack)
-    logger.info("GDD year stack cached: year=%d shape=%s", year, tmean_stack.shape)
+    _write_year_stack(path, stack)
+    _year_stack_mem[year] = stack
+    logger.info("YearStack computed and saved: year=%d shape=%s", year, tmean_stack.shape)
     return stack
 
 
 def warm_year_stack(year: int) -> None:
-    """Populate the diskcache for one year's stack. Idempotent; safe to call concurrently."""
+    """Ensure the precomputed .npz file exists for a year's stack. Idempotent."""
     _load_year_stack(year)
 
 
@@ -172,11 +240,16 @@ class GDDService:
            0   → reached budbreak but no frost events
           ≥1   → number of frost events during the sensitive period
         """
-        cache_key = f"gdd_frost_{year}_{crop.name}"
-        cached = temperature_cache.get(cache_key)
-        if isinstance(cached, GDDResult):
-            logger.debug("GDD cache hit: %s", cache_key)
-            return cached
+        mem_key = f"{year}_{crop.name}"
+        if mem_key in _gdd_result_mem:
+            return _gdd_result_mem[mem_key]
+
+        path = _result_path(year, crop.name)
+        if path.exists():
+            result = _read_gdd_result(path)
+            _gdd_result_mem[mem_key] = result
+            logger.info("GDDResult loaded from file: year=%d crop=%s", year, crop.name)
+            return result
 
         stack = _load_year_stack(year)
 
@@ -200,8 +273,9 @@ class GDDService:
         frost_count[(~ever_sensitive) & (~nan_mask)] = _NEVER_REACHED_BUDBREAK
 
         result = GDDResult(frost_count, stack.bounds)
-        temperature_cache.set(cache_key, result)
-        logger.info("GDD computed: year=%d crop=%s", year, crop.name)
+        _write_gdd_result(path, result)
+        _gdd_result_mem[mem_key] = result
+        logger.info("GDDResult computed and saved: year=%d crop=%s", year, crop.name)
         return result
 
 

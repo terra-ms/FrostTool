@@ -1,21 +1,31 @@
 from pathlib import Path
 import os
 
+_DATA_ROOT_MEAN: Path = Path(os.environ.get("DATA_ROOT_MEAN", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2"))
+_DATA_ROOT_MIN: Path = Path(os.environ.get("DATA_ROOT_MIN", r"C:\Olivier\Terra local\data\AgERA5\tmin_v2"))
+
 # Temperature data sources configuration
 TEMPERATURE_SOURCES: dict[str, dict[str, Path | str]] = {
     "mean": {
-        "path": Path(os.environ.get("DATA_ROOT_MEAN", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2")),
+        "path": _DATA_ROOT_MEAN,
         "variable": "Temperature_Air_2m_Mean_24h",
         "label": "Mean (24h)",
         "units": "K",
     },
     "min": {
-        "path": Path(os.environ.get("DATA_ROOT_MIN", r"C:\Olivier\Terra local\data\AgERA5\tmin_v2")),
+        "path": _DATA_ROOT_MIN,
         "variable": "Temperature_Air_2m_Min_24h",
         "label": "Minimum (24h)",
         "units": "K",
     },
 }
+
+# Pre-computed GDD artifacts (YearStack + GDDResult .npz files).
+# Defaults to a sibling of tmean_v2 so all AgERA5 data lives in one place.
+# Override with PRECOMPUTED_DIR env var (or an S3-mounted path in production).
+PRECOMPUTED_DIR: Path = Path(
+    os.environ.get("PRECOMPUTED_DIR", str(_DATA_ROOT_MEAN.parent / "precomputed"))
+)
 
 # Default to mean, but can be overridden
 DEFAULT_TEMP_TYPE: str = "mean"

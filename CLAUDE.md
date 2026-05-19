@@ -18,7 +18,8 @@ Full-stack geospatial data application for visualising global climate data from 
 | Backend   | Python 3.11+, FastAPI, Uvicorn                          |
 | Data I/O  | xarray, netCDF4, numpy, rasterio                        |
 | Frontend  | Dash (Plotly), dash-leaflet, georaster-layer-for-leaflet|
-| Caching   | Two-level: in-memory LRU (60 entries) + diskcache (20 GB, persistent) |
+| Caching (climate) | Two-level: in-memory LRU (60 entries) + diskcache (20 GB) — heatmap raster slices |
+| Caching (GDD)     | In-memory dict + precomputed `.npz` files in `AgERA5/precomputed/` — no TTL, no expiry |
 | Testing   | pytest, httpx (async FastAPI tests)                     |
 | Linting   | ruff, black, mypy (strict)                              |
 
@@ -135,7 +136,8 @@ async def get_temperature(
 - All file reads must be wrapped in `_HDF5_LOCK` (defined in `netcdf_service.py`). HDF5/NetCDF4 is not thread-safe; the lock serialises opens so parallel cache-miss loads don't corrupt state.
 - Close datasets explicitly or use context managers; never leave file handles open.
 - Clip, downsample, or slice data **server-side** before sending to the frontend — never ship a raw full-resolution grid to the browser.
-- Cache expensive computed slices using `temperature_cache` (two-level: memory LRU + diskcache). Each global slice is ~25 MB; the diskcache `size_limit` is set to **20 GB** — do not lower it or large date ranges will cause evictions and make every timeseries click slow.
+- Cache expensive computed slices using `temperature_cache` (two-level: memory LRU + diskcache). This is for **climate/heatmap data only**. Each global slice is ~25 MB; the diskcache `size_limit` is set to **20 GB** — do not lower it or large date ranges will cause evictions and make every timeseries click slow.
+- **GDD data uses a separate file-based persistence layer** — `YearStack` and `GDDResult` are stored as `.npz` files in `AgERA5/precomputed/` (path configured by `PRECOMPUTED_DIR` in `core/config.py`). Do **not** route GDD data through `temperature_cache`; it has a 1-hour TTL which would cause the warm-up to re-run on every restart.
 
 ### Naming Conventions
 
@@ -224,7 +226,8 @@ These rules exist so that new parameters (wind, precipitation, soil moisture) an
 
 - **Lazy-load** NetCDF files; never load an entire file into memory upfront.
 - **Downsample** grids to match the current map zoom level (coarser grid at low zoom, finer at high zoom).
-- **Cache** processed tiles and aggregation results with `temperature_cache`. Cache keys for individual slices: `"{date}_{time_index}_{temp_type}"`. Cache keys for aggregations: `"agg_{start}_{end}_{agg}_{time_index}_{temp_type}"`. The aggregation key is shared between `/raster` and `/colorscale` via `_get_aggregated_data()` — both endpoints hit the same cached numpy array.
+- **Cache** processed tiles and aggregation results with `temperature_cache` (climate/heatmap only). Cache keys for individual slices: `"{date}_{time_index}_{temp_type}"`. Cache keys for aggregations: `"agg_{start}_{end}_{agg}_{time_index}_{temp_type}"`. The aggregation key is shared between `/raster` and `/colorscale` via `_get_aggregated_data()` — both endpoints hit the same cached numpy array.
+- **GDD artifacts** (`YearStack`, `GDDResult`) are persisted as `.npz` files — see `gdd_service.py`. Lookup order: in-memory dict → `.npz` file → compute from NetCDF + save. Deleting a `.npz` file forces recomputation of that artifact.
 - **Expected timings (local SSD):** first render of an uncached date range loads from NC files (~200 ms/file serialised through `_HDF5_LOCK`); second render and timeseries are disk-cache hits (~100 ms/entry) or memory hits (~1 ms/entry). For a 180-day range, first render ≈ 36 s; subsequent ≈ 3–7 s.
 - Use `numpy` vectorised operations — avoid Python-level loops over grid cells.
 - Prefer `float32` over `float64` for grid arrays sent to the frontend.
@@ -310,3 +313,5 @@ Accumulated over a date range this gives cumulative GDD. Key design points:
 - Do not return raw numpy arrays from API endpoints — always serialise to a defined Pydantic schema or a tiled binary format.
 - Do not lower the diskcache `size_limit` below 20 GB — each global raster slice is ~25 MB and a 180-day range needs ~4.5 GB per temperature type.
 - Do not remove `_HDF5_LOCK` from `netcdf_service.py` — concurrent HDF5 reads without it will corrupt file state under `ThreadPoolExecutor`.
+- Do not route GDD data (`YearStack`, `GDDResult`) through `temperature_cache` — it has a 1-hour TTL that would silently expire precomputed data and re-trigger the full warm-up on every restart. GDD persistence uses `.npz` files in `PRECOMPUTED_DIR`.
+- If crop parameters in `crops.txt` are changed, manually delete the affected `gdd_frost_{year}_{crop}.npz` files — the filename does not encode crop parameters, so stale files will not be detected automatically.
