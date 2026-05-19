@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-05-19 (session 2)
+Last updated: 2026-05-19 (session 3)
 
 ---
 
@@ -271,11 +271,6 @@ When zooming out on the Frost Risk map, a vertical band roughly covering 0°–2
 - Removed `zoom_level` from GDD raster URL (now always full-resolution) — no effect
 - Set `updateWhenZooming: true` on `GeoRasterLayer` — no effect
 Next things to try: `keepBuffer: 4` on `GeoRasterLayer` to widen the tile buffer; calling `currentLayer.redraw()` after zoom animation settles; or switching to a zoom-threshold-based re-render approach (like the heatmap page).
-
-**First-ever startup is slow (~8–10 min) when no `.npz` files exist yet.**
-Once all precomputed files are generated (after the first full warm-up), every subsequent startup loads from disk in seconds. The slow path is only hit once per year×crop combo — or again if `.npz` files are manually deleted to force regeneration. Potential optimisations:
-- Lazy-load only the required spatial slice rather than full global arrays
-- Parallelise across years rather than serialising through `_HDF5_LOCK` per file
 
 **For S3 deployment:** upload the `precomputed/` folder to S3 alongside the NetCDF data. The backend only needs to swap local `Path` I/O for `boto3` reads in `_read_year_stack` / `_read_gdd_result` — everything else is unchanged.
 
