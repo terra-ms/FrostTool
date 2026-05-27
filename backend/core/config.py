@@ -44,7 +44,7 @@ CROPS_CONFIG_PATH: Path = Path(
 
 # Earliest year included in the background GDD warm-up at startup.
 # Pre-2000 years are rarely needed; raise this value to reduce cold-start time.
-GDD_WARMUP_MIN_YEAR: int = int(os.environ.get("GDD_WARMUP_MIN_YEAR", "2005"))
+GDD_WARMUP_MIN_YEAR: int = int(os.environ.get("GDD_WARMUP_MIN_YEAR", "2000"))
 
 CONTINENTS: dict[str, tuple[float, float, float, float]] = {
     "Africa": (-35, 37, -18, 52),

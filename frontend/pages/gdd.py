@@ -76,6 +76,28 @@ def layout() -> dbc.Row:
                         style={"width": "100%", "marginBottom": "12px"},
                     ),
                     html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
+                    html.H6("TIME PERIOD", style=_LABEL_STYLE),
+                    html.P(
+                        "Filter frost events by date range within the season. "
+                        "Leave blank to show the full Jan – May season.",
+                        style={
+                            "fontFamily": "'Space Mono',monospace",
+                            "fontSize": "9px",
+                            "color": "#3C8361",
+                            "lineHeight": "1.6",
+                            "marginBottom": "10px",
+                        },
+                    ),
+                    dcc.DatePickerRange(
+                        id="gdd-period-picker",
+                        start_date=None,
+                        end_date=None,
+                        start_date_placeholder_text="From",
+                        end_date_placeholder_text="To",
+                        display_format="D MMM",
+                        style={"marginBottom": "12px"},
+                    ),
+                    html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
                     dbc.Button("Render Frost Map", id="gdd-render-btn", style=_BTN_STYLE),
                     html.Div(
                         id="gdd-status",
@@ -144,6 +166,7 @@ def layout() -> dbc.Row:
                             create_gdd_map_frame(),
                             dcc.Store(id="gdd-coordinate-intermediate"),
                             dcc.Store(id="gdd-clicked-coordinate"),
+                            dcc.Store(id="gdd-active-period"),
                             html.Button(
                                 id="gdd-coordinate-trigger",
                                 style={"display": "none"},

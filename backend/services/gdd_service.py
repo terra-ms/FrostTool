@@ -227,6 +227,48 @@ def warm_year_stack(year: int) -> None:
     _load_year_stack(year)
 
 
+def compute_frost_event_count_in_period(
+    year: int,
+    crop: CropParams,
+    period_start: date,
+    period_end: date,
+) -> GDDResult:
+    """Count frost events only within [period_start, period_end].
+
+    GDD accumulation for budbreak detection always uses the full Jan–May season.
+    Frost events outside the window are excluded from the per-cell count.
+    Not cached to disk — computed on the fly from the in-memory YearStack.
+    """
+    stack = _load_year_stack(year)
+
+    nan_mask = (
+        np.any(np.isnan(stack.tmean_stack), axis=0)
+        | np.any(np.isnan(stack.tmin_stack), axis=0)
+    )
+
+    tavg_c = stack.tmean_stack - 273.15
+    tmin_c = stack.tmin_stack - 273.15
+
+    gdd_daily = np.maximum(tavg_c - crop.base_temperature, 0.0)
+    gdd_accum = np.cumsum(gdd_daily, axis=0)
+
+    sensitive = gdd_accum >= crop.gdd_threshold
+    ever_sensitive = sensitive.any(axis=0)
+
+    period_mask = np.array(
+        [period_start <= d <= period_end for d in stack.dates], dtype=bool
+    )
+    period_mask_3d = period_mask[:, np.newaxis, np.newaxis]
+
+    frost = sensitive & (tmin_c < crop.frost_threshold) & period_mask_3d
+
+    frost_count = frost.sum(axis=0).astype(np.float32)
+    frost_count[nan_mask] = np.nan
+    frost_count[(~ever_sensitive) & (~nan_mask)] = _NEVER_REACHED_BUDBREAK
+
+    return GDDResult(frost_count, stack.bounds)
+
+
 class GDDService:
     @staticmethod
     def compute_frost_event_count(year: int, crop: CropParams) -> GDDResult:

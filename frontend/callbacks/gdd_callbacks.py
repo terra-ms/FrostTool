@@ -1,5 +1,6 @@
 import logging
 from concurrent.futures import Future, ThreadPoolExecutor
+from datetime import date
 
 import plotly.graph_objects as go
 import requests
@@ -83,25 +84,66 @@ def populate_gdd_dropdowns(_: bool) -> tuple[list[dict], str | None, list[dict],
 
 
 @callback(
+    Output("gdd-period-picker", "min_date_allowed"),
+    Output("gdd-period-picker", "max_date_allowed"),
+    Output("gdd-period-picker", "initial_visible_month"),
+    Output("gdd-period-picker", "start_date"),
+    Output("gdd-period-picker", "end_date"),
+    Input("gdd-year-selector", "value"),
+    prevent_initial_call=False,
+)
+def reset_period_picker(
+    year: int | None,
+) -> tuple[str | None, str | None, str | None, None, None]:
+    if not year:
+        return None, None, None, None, None
+    return f"{year}-01-01", f"{year}-05-31", f"{year}-01-01", None, None
+
+
+@callback(
     Output("gdd-map-frame", "srcDoc"),
     Output("gdd-status", "children"),
+    Output("gdd-active-period", "data"),
     Input("gdd-render-btn", "n_clicks"),
     State("gdd-crop-selector", "value"),
     State("gdd-year-selector", "value"),
+    State("gdd-period-picker", "start_date"),
+    State("gdd-period-picker", "end_date"),
     prevent_initial_call=True,
 )
 def render_gdd_map(
     n_clicks: int | None,
     crop: str | None,
     year: int | None,
-) -> tuple[str, str]:
+    period_start: str | None,
+    period_end: str | None,
+) -> tuple[str, str, dict | None]:
     if not crop or not year:
-        return get_gdd_map_html(), "Select a crop and year, then click Render."
+        return get_gdd_map_html(), "Select a crop and year, then click Render.", None
 
     raster_url = f"{API_BASE_URL}/gdd/raster?year={year}&crop={crop}"
+    period_label = ""
+    active_period: dict | None = None
+
+    if period_start or period_end:
+        date_from = period_start[:10] if period_start else None
+        date_to = period_end[:10] if period_end else None
+        if date_from:
+            raster_url += f"&date_from={date_from}"
+        if date_to:
+            raster_url += f"&date_to={date_to}"
+        fmt_from = date.fromisoformat(date_from).strftime("%d %b") if date_from else "1 Jan"
+        fmt_to = date.fromisoformat(date_to).strftime("%d %b") if date_to else "31 May"
+        period_label = f" · {fmt_from} – {fmt_to}"
+        active_period = {"date_from": date_from, "date_to": date_to}
+
     src = get_gdd_map_html_with_raster(raster_url, year, crop)
     crop_label = crop.capitalize()
-    return src, f"Rendering {year} · {crop_label} — this may take ~30 s on first load."
+    return (
+        src,
+        f"Rendering {year} · {crop_label}{period_label} — this may take ~30 s on first load.",
+        active_period,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -208,9 +250,10 @@ def _empty_figure() -> go.Figure:
 @callback(
     Output("gdd-timeseries-graph", "figure"),
     Input("gdd-clicked-coordinate", "data"),
+    State("gdd-active-period", "data"),
     prevent_initial_call=True,
 )
-def update_gdd_timeseries(clicked: dict | None) -> go.Figure:
+def update_gdd_timeseries(clicked: dict | None, active_period: dict | None) -> go.Figure:
     if not clicked:
         return _empty_figure()
 
@@ -244,6 +287,31 @@ def update_gdd_timeseries(clicked: dict | None) -> go.Figure:
     budbreak_date: str | None = ts.get("budbreak_date")
     frost_dates: list[str] = ts.get("frost_event_dates", [])
     crop_label: str = ts["crop_display_name"]
+
+    # Apply time period filter if one was active when the map was rendered
+    period = active_period or {}
+    date_from = period.get("date_from")
+    date_to = period.get("date_to")
+    if date_from or date_to:
+        window_start = date_from or dates[0]
+        window_end = date_to or dates[-1]
+        keep = [i for i, d in enumerate(dates) if window_start <= d <= window_end]
+        dates = [dates[i] for i in keep]
+        gdd_vals = [gdd_vals[i] for i in keep]
+        tmin_vals = [tmin_vals[i] for i in keep]
+        date_set = set(dates)
+        frost_dates = [d for d in frost_dates if d in date_set]
+        if budbreak_date and not (window_start <= budbreak_date <= window_end):
+            budbreak_date = None
+
+    if not dates:
+        fig = _empty_figure()
+        fig.add_annotation(
+            text="No season data for selected period",
+            showarrow=False,
+            font=dict(size=11, color="#e07050"),
+        )
+        return fig
 
     fig = go.Figure()
 

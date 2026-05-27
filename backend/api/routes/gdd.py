@@ -1,4 +1,5 @@
 import numpy as np
+from datetime import date
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
@@ -11,7 +12,13 @@ from backend.models.schemas import (
     GDDTimeseriesDataPoint,
     GDDTimeseriesResponse,
 )
-from backend.services.gdd_service import GDDService, get_available_gdd_years, get_gdd_timeseries, load_crops
+from backend.services.gdd_service import (
+    GDDService,
+    compute_frost_event_count_in_period,
+    get_available_gdd_years,
+    get_gdd_timeseries,
+    load_crops,
+)
 from backend.services.netcdf_service import _build_raster_bytes_preclipped
 
 router = APIRouter(prefix="/api/v1/gdd", tags=["gdd"])
@@ -50,12 +57,23 @@ async def get_gdd_raster(
     year: int = Query(..., ge=1979, le=2100),
     crop: str = Query(..., description="Crop key from crops.txt"),
     zoom_level: int | None = Query(None, ge=0, le=19),
+    date_from: date | None = Query(None, description="Start of display period (YYYY-MM-DD, within season)"),
+    date_to: date | None = Query(None, description="End of display period (YYYY-MM-DD, within season)"),
 ) -> StreamingResponse:
     try:
         crops = load_crops()
         if crop not in crops:
             raise HTTPException(status_code=404, detail=f"Crop '{crop}' not found in crops.txt")
-        result = GDDService.compute_frost_event_count(year, crops[crop])
+        if date_from is not None or date_to is not None:
+            season_start = date(year, 1, 1)
+            season_end = date(year, 5, 31)
+            period_start = date_from or season_start
+            period_end = date_to or season_end
+            if period_start > period_end:
+                raise HTTPException(status_code=422, detail="date_from must not be later than date_to")
+            result = compute_frost_event_count_in_period(year, crops[crop], period_start, period_end)
+        else:
+            result = GDDService.compute_frost_event_count(year, crops[crop])
         raster_bytes = _build_raster_bytes_preclipped(
             result.frost_count,
             result.bounds.min_lat,
@@ -124,12 +142,21 @@ async def get_gdd_timeseries_endpoint(
 async def get_gdd_colorscale(
     year: int = Query(..., ge=1979, le=2100),
     crop: str = Query(..., description="Crop key from crops.txt"),
+    date_from: date | None = Query(None, description="Start of display period (YYYY-MM-DD, within season)"),
+    date_to: date | None = Query(None, description="End of display period (YYYY-MM-DD, within season)"),
 ) -> GDDColorscaleResponse:
     try:
         crops = load_crops()
         if crop not in crops:
             raise HTTPException(status_code=404, detail=f"Crop '{crop}' not found in crops.txt")
-        result = GDDService.compute_frost_event_count(year, crops[crop])
+        if date_from is not None or date_to is not None:
+            season_start = date(year, 1, 1)
+            season_end = date(year, 5, 31)
+            period_start = date_from or season_start
+            period_end = date_to or season_end
+            result = compute_frost_event_count_in_period(year, crops[crop], period_start, period_end)
+        else:
+            result = GDDService.compute_frost_event_count(year, crops[crop])
         frost_count = result.frost_count
         # Exclude NaN and the "never reached budbreak" sentinel from the max
         valid = frost_count[~np.isnan(frost_count) & (frost_count >= 0)]
