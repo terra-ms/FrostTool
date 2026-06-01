@@ -1,0 +1,42 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATA_ROOT_MEAN: /data/tmean_v2
+      DATA_ROOT_MIN: /data/tmin_v2
+      PRECOMPUTED_DIR: /data/precomputed
+      CACHE_DIR: /cache
+      GDD_WARMUP_MIN_YEAR: "2000"
+      # Allow requests from the browser (via the host) and the frontend container
+      ALLOWED_ORIGINS: "http://localhost:8050,http://127.0.0.1:8050"
+    volumes:
+      # Mount local AgERA5 data. Set AGERA5_DATA_PATH in .env (see .env.example).
+      # Windows path example: C:/Olivier/Terra local/data/AgERA5
+      - ${AGERA5_DATA_PATH}/tmean_v2:/data/tmean_v2:ro
+      - ${AGERA5_DATA_PATH}/tmin_v2:/data/tmin_v2:ro
+      - ${AGERA5_DATA_PATH}/precomputed:/data/precomputed
+      - cache:/cache
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8050:8050"
+    environment:
+      # Server-side Python requests go through the Docker internal network
+      REACT_APP_API_URL: http://backend:8000/api/v1
+      # Browser JS fetches go to the backend port exposed on the host
+      PUBLIC_API_URL: http://localhost:8000/api/v1
+      DASH_DEBUG: "false"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  cache:

@@ -1,0 +1,14 @@
+.git/
+.cache/
+.env
+.pytest_cache/
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+*.npz
+*.nc
+tests/
+.github/
+CLAUDE.md
+currentState.md
+README.md

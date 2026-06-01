@@ -6,7 +6,7 @@ from dash import Input, Output, State, callback, callback_context, clientside_ca
 from dash import html
 
 from frontend.components.map_component import API, get_map_html, get_map_html_with_initial_raster
-from frontend.config import API_BASE_URL
+from frontend.config import PUBLIC_API_URL
 from frontend.utils import kelvin_to_celsius
 
 
@@ -85,16 +85,16 @@ def update_map(map_frame_id: str, trigger_data: dict | None) -> str:
     ctx = callback_context
     if ctx.triggered and ctx.triggered[0]["prop_id"].startswith("raster-trigger"):
         if not trigger_data:
-            return get_map_html(API_BASE_URL)
+            return get_map_html(PUBLIC_API_URL)
         return get_map_html_with_initial_raster(
-            api_url=API_BASE_URL,
+            api_url=PUBLIC_API_URL,
             raster_url=trigger_data.get("rasterUrl"),
             colorscale_url=trigger_data.get("colorscaleUrl"),
             date=trigger_data.get("date"),
             continent=trigger_data.get("continent"),
             temp_type=trigger_data.get("tempType"),
         )
-    return get_map_html(API_BASE_URL)
+    return get_map_html(PUBLIC_API_URL)
 
 
 @callback(
@@ -140,18 +140,14 @@ def render_heatmap(
     temp_type = selected_temp_type or "mean"
 
     try:
-        colorscale_url = (
-            f"{API}/colorscale"
-            f"?start_date={d_start_str}&end_date={d_end_str}&agg_type=min&temp_type={temp_type}"
-        )
-        raster_url = (
-            f"{API}/raster"
-            f"?start_date={d_start_str}&end_date={d_end_str}&agg_type=min&temp_type={temp_type}"
-        )
+        qs = f"?start_date={d_start_str}&end_date={d_end_str}&agg_type=min&temp_type={temp_type}"
+        colorscale_url_internal = f"{API}/colorscale{qs}"
+        colorscale_url = f"{PUBLIC_API_URL}/colorscale{qs}"
+        raster_url = f"{PUBLIC_API_URL}/raster{qs}"
         if selected_continent:
             raster_url += f"&continent={selected_continent}"
 
-        cs: dict = requests.get(colorscale_url, timeout=60).json()
+        cs: dict = requests.get(colorscale_url_internal, timeout=60).json()
     except Exception as exc:
         return (
             [html.Div(f"Backend error: {exc}", style={"color": "#e07050"})],

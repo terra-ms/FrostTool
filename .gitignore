@@ -37,7 +37,7 @@ venv.bak/
 .DS_Store
 Thumbs.db
 
-# Environment variables
+# Environment variables (.env.example is intentionally committed as a template)
 .env
 .env.local
 .env.*.local

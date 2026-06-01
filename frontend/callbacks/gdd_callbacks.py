@@ -7,7 +7,7 @@ import requests
 from dash import Input, Output, State, callback, callback_context, clientside_callback
 
 from frontend.components.gdd_map_component import get_gdd_map_html, get_gdd_map_html_with_raster
-from frontend.config import API_BASE_URL
+from frontend.config import API_BASE_URL, PUBLIC_API_URL
 
 logger = logging.getLogger(__name__)
 
@@ -121,7 +121,7 @@ def render_gdd_map(
     if not crop or not year:
         return get_gdd_map_html(), "Select a crop and year, then click Render.", None
 
-    raster_url = f"{API_BASE_URL}/gdd/raster?year={year}&crop={crop}"
+    raster_url = f"{PUBLIC_API_URL}/gdd/raster?year={year}&crop={crop}"
     period_label = ""
     active_period: dict | None = None
 

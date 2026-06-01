@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-05-19 (session 3)
+Last updated: 2026-06-01 (session 6)
 
 ---
 
@@ -109,8 +109,8 @@ C:\Olivier\Terra local\data\AgERA5\
 
 | Method | Path | Purpose |
 |---|---|---|
-| GET | `/raster` | GeoTIFF frost event count raster for `year` + `crop`. Values: NaN=ocean, -1=never budbreak, 0=no frost, ≥1=count. |
-| GET | `/colorscale` | Max frost count for the year (min always 0) |
+| GET | `/raster` | GeoTIFF frost event count raster for `year` + `crop`. Optional `date_from`/`date_to` (ISO) limit the frost-event window within the season. Values: NaN=ocean, -1=never budbreak, 0=no frost, ≥1=count. |
+| GET | `/colorscale` | Max frost count for the year (min always 0). Accepts the same optional `date_from`/`date_to` params as `/raster`. |
 | GET | `/crops` | List of crop names from `crops.txt` (reloaded per request — editable live) |
 | GET | `/available-years` | Years where both tmean and tmin data exist (served from memory cache) |
 | GET | `/timeseries` | Per-cell daily GDD accumulation + Tmin series for a `lat`/`lon`/`year`/`crop`. Returns budbreak date and frost event dates. |
@@ -139,6 +139,11 @@ The computation is split so expensive file I/O is separated from cheap numpy mat
 - Delete the `.npz` file manually if crop parameters in `crops.txt` are changed.
 
 Both levels also use a plain in-memory dict (`_year_stack_mem`, `_gdd_result_mem`) for instant re-access within the same process lifetime.
+
+**Date-range variant — `compute_frost_event_count_in_period(year, crop, period_start, period_end)` (`gdd_service.py`):**
+- Counts only frost events that fall within `[period_start, period_end]`. GDD accumulation for budbreak detection still uses the **full Jan–May season**.
+- Computed on the fly from the warmed-up in-memory `YearStack` (~1 s); not cached to disk (result varies per period).
+- Called by `/gdd/raster` and `/gdd/colorscale` when either `date_from` or `date_to` is present in the request.
 
 **File layout:**
 ```
@@ -215,7 +220,7 @@ frost_threshold = -2
 On backend startup the `lifespan` context manager:
 
 1. **Synchronously** calls `get_available_gdd_years()` to populate its in-memory cache before the warm-up thread starts. This prevents the warm-up's disk I/O from blocking the Uvicorn async event loop on the first `/gdd/available-years` request.
-2. Starts a **background daemon thread** (`gdd-warmup`) that ensures all `YearStack` + `GDDResult` `.npz` files exist for years ≥ `GDD_WARMUP_MIN_YEAR` (default 2005, overridable via env var). Years are processed most-recent-first. For each year/crop combo it calls `_load_year_stack` / `compute_frost_event_count` — these are no-ops if the `.npz` file already exists.
+2. Starts a **background daemon thread** (`gdd-warmup`) that ensures all `YearStack` + `GDDResult` `.npz` files exist for years ≥ `GDD_WARMUP_MIN_YEAR` (default **2000**, overridable via env var — was 2005 before commit `9fb5aa5`). Years are processed most-recent-first. For each year/crop combo it calls `_load_year_stack` / `compute_frost_event_count` — these are no-ops if the `.npz` file already exists.
 
 **Expected warm-up time:**
 - **First ever startup** (no `.npz` files): ~60 s per year (302 NetCDF reads) + ~2 s per crop. Total ~8–10 min for 2005–2007.
@@ -237,7 +242,7 @@ The app serves requests immediately; the warm-up only affects first-render laten
 
 ## Frontend — Frost Risk page (`/gdd`)
 
-- **Sidebar:** crop dropdown, year dropdown, Render button, status text, legend, methodology note.
+- **Sidebar:** crop dropdown, year dropdown, **date range picker** (optional sub-period within the season), Render button, status text, legend, methodology note.
 - **Dropdown population:** `layout()` renders empty dropdowns immediately (no blocking calls). A `dcc.Store(id="gdd-page-store", data=True)` in the layout triggers `populate_gdd_dropdowns` once on mount. That callback fetches `/gdd/crops` and `/gdd/available-years` **in parallel** (2 threads, 5 s timeout). Results are cached at module level so re-navigation is instant.
 - **Map iframe:** Leaflet + `georaster-layer-for-leaflet`, centered on Europe `[52, 15]` zoom 4.
 - **Colour scale** (solid hex colours, transparency via `opacity: 0.75` on the layer — matches the heatmap approach, prevents tile-seam grid artefacts):
@@ -245,11 +250,13 @@ The app serves requests immediately; the warm-up only affects first-render laten
   - `#2d8a4e` — budbreak reached, 0 frost events
   - `#3b82f6` — 1 frost event
   - `#f97316` → `#7f1d1d` (chroma LAB mix) — 2+ frost events
-- **Render flow:** button click → `gdd_callbacks.py` builds URL `/gdd/raster?year=…&crop=…` → replaces iframe `srcDoc` with HTML that auto-calls `window.loadGDDRaster(url, year, crop)` after 100 ms.
+- **Date range filter (`gdd-period-picker`):** `dcc.DatePickerRange` constrained to the selected year's Jan–May season. Leave blank to show the full season. When a period is set, `date_from` / `date_to` are appended to the raster URL. The status text shows the active window (e.g. `2007 · Grapevine · 15 Mar – 31 May`). The active period is stored in `dcc.Store(id="gdd-active-period")` so the timeseries chart filters to the same window. A `reset_period_picker` callback clears and rebinds the picker whenever the year changes.
+- **Render flow:** button click → `gdd_callbacks.py` builds URL `/gdd/raster?year=…&crop=…[&date_from=…&date_to=…]` → replaces iframe `srcDoc` with HTML that auto-calls `window.loadGDDRaster(url, year, crop)` after 100 ms.
 - **Coordinate bridge:** mirrors the heatmap approach. `gdd_map.js` sends a `gddCoordinateClicked` postMessage on click (includes `lat`, `lon`, `year`, `crop` — click is a no-op if no raster has been rendered yet). A `clientside_callback` writes to `gdd-coordinate-intermediate`; a server callback syncs to `gdd-clicked-coordinate`.
 - **GDD timeseries graph panel:** slides up (30% height) on cell click. Dual-axis Plotly chart:
   - Left axis (blue): daily Tmin curve with a dashed frost threshold line and orange × markers on each frost event after budbreak.
   - Right axis (green): cumulative GDD curve with a dashed budbreak threshold line and a dotted vertical marker at the budbreak date (or none if never reached).
+  - When a date-range filter is active, both axes and the frost/budbreak markers are trimmed to the same window. Shows "No season data for selected period" annotation if the window contains no dates.
   - Closeable via ✕ button.
 
 ---
@@ -278,6 +285,8 @@ Next things to try: `keepBuffer: 4` on `GeoRasterLayer` to widen the tile buffer
 
 ## How to run
 
+### Local (no Docker)
+
 ```
 # Backend (from project root, with PYTHONPATH=.)
 uvicorn backend.main:app --host 127.0.0.1 --port 8000
@@ -286,6 +295,29 @@ uvicorn backend.main:app --host 127.0.0.1 --port 8000
 python -m frontend.app
 ```
 
-CORS is configured to allow `http://localhost:8050` and `http://127.0.0.1:8050`.
+CORS is configured to allow `http://localhost:8050` and `http://127.0.0.1:8050` (overridable via `ALLOWED_ORIGINS`).
 
 JS files (`map.js`, `gdd_map.js`) are read from disk at **Dash server startup** — restart required after JS changes.
+
+### Docker Compose
+
+```
+# 1. Copy and fill in the data path
+cp .env.example .env
+# set AGERA5_DATA_PATH=C:/Olivier/Terra local/data/AgERA5
+
+# 2. Build and start
+docker compose up --build
+```
+
+Open `http://localhost:8050`. The backend API is exposed at `http://localhost:8000`.
+
+**Dockerfiles:** `backend/Dockerfile` and `frontend/Dockerfile`. Both use `python:3.11-slim` with the project root as build context. Only runtime deps (`backend/requirements.txt`) are installed in the image; dev tools live in `backend/requirements-dev.txt`.
+
+**System deps (backend image):** The rasterio manylinux wheel bundles GDAL but GDAL requires `libexpat1` at runtime, which is absent from `python:3.11-slim`. The Dockerfile installs `libexpat1` and `libsqlite3-0` via apt. Both images build and start correctly — confirmed working with `docker compose up --build`.
+
+**URL split:** The frontend has two API URL env vars:
+- `REACT_APP_API_URL` — used for server-side Python `requests.get` calls inside the container network (points to `http://backend:8000/api/v1` in Compose).
+- `PUBLIC_API_URL` — embedded in iframe JS and fetched by the browser (points to `http://localhost:8000/api/v1` in Compose; will be the public ALB URL in Fargate).
+
+**boto3** is included in `backend/requirements.txt` in preparation for S3 data access.

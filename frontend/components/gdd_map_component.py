@@ -3,7 +3,7 @@ from pathlib import Path
 
 from dash import html
 
-from frontend.config import API_BASE_URL
+from frontend.config import PUBLIC_API_URL
 
 _JS_CONTENT: str = (Path(__file__).parent / "gdd_map.js").read_text(encoding="utf-8")
 
@@ -60,7 +60,7 @@ _HTML_TEMPLATE = """\
 
 def _build_html(extra: str = "") -> str:
     return _HTML_TEMPLATE.format(
-        api_url=json.dumps(API_BASE_URL),
+        api_url=json.dumps(PUBLIC_API_URL),
         js=_JS_CONTENT,
         extra=extra,
     )
