@@ -12,6 +12,7 @@ from rasterio.crs import CRS
 from rasterio.transform import from_bounds
 
 from backend.core.config import CONTINENTS, TEMPERATURE_SOURCES
+from backend.services import storage
 from backend.core.exceptions import (
     DatasetNotFoundError,
     InvalidTimeIndexError,
@@ -149,28 +150,14 @@ def _build_raster_bytes_preclipped(
 
 class NetCDFService:
     @staticmethod
-    def resolve_nc_path(date_obj: date, temp_type: str = "mean") -> Path:
+    def resolve_nc_path(date_obj: date, temp_type: str = "mean") -> str | Path:
         data_root = _get_data_root(temp_type)
-        folder: Path = data_root / f"{date_obj.year:04d}"
-        pattern: str = date_obj.isoformat().replace("-", "")
-
-        logger.debug(f"Searching for {pattern} in {folder}")
-        matches: list[Path] = list(folder.glob(f"*{pattern}*.nc"))
-
-        if not matches:
-            logger.error(
-                "NetCDF file not found",
-                extra={"date": str(date_obj), "folder": str(folder), "pattern": pattern},
-            )
+        date_str: str = date_obj.isoformat().replace("-", "")
+        try:
+            return storage.find_nc_file(data_root, date_obj.year, date_str)
+        except FileNotFoundError:
+            logger.error("NetCDF file not found for %s (%s)", date_obj, temp_type)
             raise DatasetNotFoundError(date_obj)
-
-        if len(matches) > 1:
-            logger.warning(
-                f"Multiple NetCDF files found for {date_obj}; using first match",
-                extra={"matches": [str(m) for m in matches]},
-            )
-
-        return matches[0]
 
     @staticmethod
     def get_temperature_slice(
@@ -304,11 +291,9 @@ class NetCDFService:
         data_root = _get_data_root(temp_type)
         dates: list[str] = []
 
-        for year_folder in data_root.glob("????"):
-            if not year_folder.is_dir():
-                continue
-            for nc_file in year_folder.glob("*.nc"):
-                for part in nc_file.name.split("_"):
+        for year in storage.list_year_dirs(data_root):
+            for filename in storage.list_nc_files(data_root, year):
+                for part in filename.split("_"):
                     if len(part) == 8 and part.isdigit():
                         try:
                             date_obj = date(int(part[:4]), int(part[4:6]), int(part[6:8]))

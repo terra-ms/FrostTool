@@ -8,6 +8,7 @@ from typing import NamedTuple
 import numpy as np
 
 from backend.core.config import CONTINENTS, CROPS_CONFIG_PATH, PRECOMPUTED_DIR, TEMPERATURE_SOURCES
+from backend.services import storage
 from backend.services.netcdf_service import NetCDFService
 
 logger = logging.getLogger(__name__)
@@ -78,8 +79,7 @@ def _result_path(year: int, crop_name: str) -> Path:
 
 
 def _write_year_stack(path: Path, stack: YearStack) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
+    storage.save_npz(
         path,
         tmean_stack=stack.tmean_stack,
         tmin_stack=stack.tmin_stack,
@@ -93,18 +93,20 @@ def _write_year_stack(path: Path, stack: YearStack) -> None:
 
 
 def _read_year_stack(path: Path) -> YearStack:
-    with np.load(path) as data:
-        b = data["bounds"]
-        bounds = EuropeBounds(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
-        dates = [date.fromisoformat(s) for s in data["dates"].tolist()]
-        tmean = data["tmean_stack"]
-        tmin = data["tmin_stack"]
-    return YearStack(tmean_stack=tmean, tmin_stack=tmin, bounds=bounds, dates=dates)
+    data = storage.load_npz(path)
+    b = data["bounds"]
+    bounds = EuropeBounds(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+    dates = [date.fromisoformat(s) for s in data["dates"].tolist()]
+    return YearStack(
+        tmean_stack=data["tmean_stack"],
+        tmin_stack=data["tmin_stack"],
+        bounds=bounds,
+        dates=dates,
+    )
 
 
 def _write_gdd_result(path: Path, result: GDDResult) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(
+    storage.save_npz(
         path,
         frost_count=result.frost_count,
         bounds=np.array(
@@ -116,11 +118,10 @@ def _write_gdd_result(path: Path, result: GDDResult) -> None:
 
 
 def _read_gdd_result(path: Path) -> GDDResult:
-    with np.load(path) as data:
-        b = data["bounds"]
-        bounds = EuropeBounds(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
-        frost_count = data["frost_count"]
-    return GDDResult(frost_count=frost_count, bounds=bounds)
+    data = storage.load_npz(path)
+    b = data["bounds"]
+    bounds = EuropeBounds(float(b[0]), float(b[1]), float(b[2]), float(b[3]))
+    return GDDResult(frost_count=data["frost_count"], bounds=bounds)
 
 
 def get_available_gdd_years() -> list[int]:
@@ -136,11 +137,7 @@ def get_available_gdd_years() -> list[int]:
 
     def _year_folders(temp_type: str) -> set[int]:
         root = TEMPERATURE_SOURCES[temp_type]["path"]
-        return {
-            int(p.name)
-            for p in root.glob("????")  # type: ignore[union-attr]
-            if p.is_dir() and p.name.isdigit()
-        }
+        return set(storage.list_year_dirs(root))
 
     _available_years = sorted(_year_folders("mean") & _year_folders("min"))
     return _available_years
@@ -181,7 +178,7 @@ def _load_year_stack(year: int) -> YearStack:
         return _year_stack_mem[year]
 
     path = _stack_path(year)
-    if path.exists():
+    if storage.npz_exists(path):
         stack = _read_year_stack(path)
         _year_stack_mem[year] = stack
         logger.info("YearStack loaded from file: year=%d", year)
@@ -287,7 +284,7 @@ class GDDService:
             return _gdd_result_mem[mem_key]
 
         path = _result_path(year, crop.name)
-        if path.exists():
+        if storage.npz_exists(path):
             result = _read_gdd_result(path)
             _gdd_result_mem[mem_key] = result
             logger.info("GDDResult loaded from file: year=%d crop=%s", year, crop.name)

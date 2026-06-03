@@ -1,0 +1,122 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Required GitHub Secrets  (Settings → Secrets and variables → Actions → Secrets)
+#
+#   AWS_ACCESS_KEY_ID       IAM user access key with ECR push + ECS deploy permissions
+#   AWS_SECRET_ACCESS_KEY   Corresponding secret key
+#
+# Required GitHub Variables  (Settings → Secrets and variables → Actions → Variables)
+#
+#   AWS_REGION              e.g. eu-west-1
+#   ECR_BACKEND_REPO        ECR repository name, e.g. frosttool-backend
+#   ECR_FRONTEND_REPO       ECR repository name, e.g. frosttool-frontend
+#   ECS_CLUSTER             ECS cluster name, e.g. frosttool-cluster
+#   ECS_SERVICE_BACKEND     ECS service name, e.g. frosttool-backend-service
+#   ECS_SERVICE_FRONTEND    ECS service name, e.g. frosttool-frontend-service
+#
+# The IAM user needs at minimum:
+#   ecr:GetAuthorizationToken, ecr:BatchCheckLayerAvailability,
+#   ecr:InitiateLayerUpload, ecr:UploadLayerPart, ecr:CompleteLayerUpload,
+#   ecr:PutImage, ecs:UpdateService, ecs:DescribeServices
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: Build and Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ── Job 1: build images (always) and push to ECR (push to main only) ────────
+  build-and-push:
+    name: Build & push images
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Configure AWS credentials only when we're going to push
+      - name: Configure AWS credentials
+        if: github.event_name == 'push'
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # Build both images (always — validates Dockerfiles on PRs too)
+      - name: Build backend image
+        run: docker build -f backend/Dockerfile -t frosttool-backend .
+
+      - name: Build frontend image
+        run: docker build -f frontend/Dockerfile -t frosttool-frontend .
+
+      # Push backend (push to main only)
+      - name: Push backend to ECR
+        if: github.event_name == 'push'
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPO: ${{ vars.ECR_BACKEND_REPO }}
+          TAG: ${{ github.sha }}
+        run: |
+          docker tag frosttool-backend $REGISTRY/$REPO:$TAG
+          docker tag frosttool-backend $REGISTRY/$REPO:latest
+          docker push $REGISTRY/$REPO:$TAG
+          docker push $REGISTRY/$REPO:latest
+
+      # Push frontend (push to main only)
+      - name: Push frontend to ECR
+        if: github.event_name == 'push'
+        env:
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          REPO: ${{ vars.ECR_FRONTEND_REPO }}
+          TAG: ${{ github.sha }}
+        run: |
+          docker tag frosttool-frontend $REGISTRY/$REPO:$TAG
+          docker tag frosttool-frontend $REGISTRY/$REPO:latest
+          docker push $REGISTRY/$REPO:$TAG
+          docker push $REGISTRY/$REPO:latest
+
+  # ── Job 2: deploy to ECS (push to main only) ─────────────────────────────────
+  deploy:
+    name: Deploy to ECS Fargate
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Deploy backend service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER }} \
+            --service ${{ vars.ECS_SERVICE_BACKEND }} \
+            --force-new-deployment \
+            --output json > /dev/null
+
+      - name: Deploy frontend service
+        run: |
+          aws ecs update-service \
+            --cluster ${{ vars.ECS_CLUSTER }} \
+            --service ${{ vars.ECS_SERVICE_FRONTEND }} \
+            --force-new-deployment \
+            --output json > /dev/null
+
+      - name: Wait for services to stabilise
+        run: |
+          aws ecs wait services-stable \
+            --cluster ${{ vars.ECS_CLUSTER }} \
+            --services ${{ vars.ECS_SERVICE_BACKEND }} ${{ vars.ECS_SERVICE_FRONTEND }}

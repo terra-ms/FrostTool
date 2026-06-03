@@ -38,6 +38,10 @@ CACHE_DIR: Path = Path(
     os.environ.get("CACHE_DIR", str(Path(__file__).parent.parent.parent / ".cache"))
 )
 
+# S3 mode: set this to the bucket name (e.g. "frosttool-data").
+# When unset, the app reads from the local DATA_ROOT_* paths (docker-compose / local dev).
+S3_BUCKET: str | None = os.environ.get("S3_BUCKET")
+
 CROPS_CONFIG_PATH: Path = Path(
     os.environ.get("CROPS_CONFIG", str(Path(__file__).parent.parent.parent / "crops.txt"))
 )

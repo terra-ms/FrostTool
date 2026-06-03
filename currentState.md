@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-06-01 (session 6)
+Last updated: 2026-06-02 (session 7)
 
 ---
 
@@ -320,4 +320,52 @@ Open `http://localhost:8050`. The backend API is exposed at `http://localhost:80
 - `REACT_APP_API_URL` — used for server-side Python `requests.get` calls inside the container network (points to `http://backend:8000/api/v1` in Compose).
 - `PUBLIC_API_URL` — embedded in iframe JS and fetched by the browser (points to `http://localhost:8000/api/v1` in Compose; will be the public ALB URL in Fargate).
 
-**boto3** is included in `backend/requirements.txt` in preparation for S3 data access.
+**boto3** and **s3fs** (`>=2025.5.0`) are included in `backend/requirements.txt`.
+
+---
+
+## S3 data storage
+
+**Bucket layout** (mirrors the local folder structure exactly):
+
+```
+s3://{S3_BUCKET}/
+├── tmean_v2/{YYYY}/*.nc
+├── tmin_v2/{YYYY}/*.nc
+└── precomputed/
+    ├── year_stacks/gdd_stack_{year}.npz
+    └── gdd_results/gdd_frost_{year}_{crop}.npz
+```
+
+**Upload command (AWS CLI):**
+```powershell
+aws s3 sync "C:\Olivier\Terra local\data\AgERA5\tmean_v2"   s3://{bucket}/tmean_v2   --region {region}
+aws s3 sync "C:\Olivier\Terra local\data\AgERA5\tmin_v2"    s3://{bucket}/tmin_v2    --region {region}
+aws s3 sync "C:\Olivier\Terra local\data\AgERA5\precomputed" s3://{bucket}/precomputed --region {region}
+```
+
+**Mode switch — single env var:**
+
+| `S3_BUCKET` | Mode | Data source |
+|---|---|---|
+| *(unset)* | Local / docker-compose | Volume-mounted `/data/` |
+| `frosttool-data` | S3 / Fargate | `s3://frosttool-data/` |
+
+In S3 mode, `DATA_ROOT_MEAN`, `DATA_ROOT_MIN`, and `PRECOMPUTED_DIR` only need to contain the folder name (e.g. `tmean_v2`), not a real path — the app uses the last path component as the S3 key prefix.
+
+**Storage abstraction (`backend/services/storage.py`):**
+
+All file I/O in the backend goes through this module. In local mode it uses `pathlib.Path`; in S3 mode it uses `s3fs`. `s3fs` is imported lazily and is never touched during local/docker-compose runs.
+
+| Function | Purpose |
+|---|---|
+| `find_nc_file(data_root, year, date_str)` | Glob for a NetCDF by date; returns `s3://...` string or local `Path` |
+| `list_year_dirs(data_root)` | List year subdirectories (S3 `ls` or local `glob`) |
+| `list_nc_files(data_root, year)` | List `.nc` filenames in a year folder |
+| `npz_exists(path)` | Check if a precomputed `.npz` exists |
+| `load_npz(path)` | Load `.npz` → plain `dict` (arrays eagerly read before file closes) |
+| `save_npz(path, **arrays)` | Save `.npz` (S3: via `BytesIO`; local: direct write) |
+
+**IAM permissions required for the ECS task role:**
+- `s3:GetObject` + `s3:ListBucket` on the bucket (for reading NetCDF and precomputed files)
+- `s3:PutObject` on `precomputed/*` (so the backend can write newly computed `.npz` files)

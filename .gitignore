@@ -41,6 +41,7 @@ Thumbs.db
 .env
 .env.local
 .env.*.local
+.env.example
 
 # Flask/Django
 instance/
