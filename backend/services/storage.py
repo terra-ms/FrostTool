@@ -14,8 +14,10 @@ S3 key layout mirrors the local folder names:
 import io
 import logging
 import os
+from contextlib import contextmanager
 from functools import lru_cache
 from pathlib import Path
+from typing import Generator
 
 import numpy as np
 
@@ -117,6 +119,27 @@ def list_nc_files(data_root: Path, year: int) -> list[str]:
     if not folder.is_dir():
         return []
     return [p.name for p in folder.glob("*.nc")]
+
+
+@contextmanager
+def open_nc(path: str | Path) -> Generator[io.BytesIO | Path, None, None]:
+    """
+    Context manager yielding something xr.open_dataset can consume.
+
+    Local mode: yields the Path directly — no overhead.
+    S3 mode:    downloads the file into a BytesIO buffer and yields that.
+                The NetCDF4 C library cannot follow s3:// URLs itself (it tries
+                its own curl access without AWS credentials and fails with
+                errno -68). Fetching via s3fs and handing xarray a buffer
+                avoids that entirely.
+    """
+    if S3_BUCKET and isinstance(path, str) and path.startswith("s3://"):
+        key = path[5:]  # strip "s3://" → "bucket/prefix/file.nc"
+        logger.debug("Fetching NC from S3: %s", key)
+        buf = io.BytesIO(_fs().cat(key))  # .cat() returns the full file as bytes
+        yield buf
+    else:
+        yield path  # type: ignore[misc]
 
 
 # ── NPZ helpers ────────────────────────────────────────────────────────────────

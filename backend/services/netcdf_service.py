@@ -176,28 +176,29 @@ class NetCDFService:
 
         try:
             with _HDF5_LOCK:
-                with xr.open_dataset(path, engine="netcdf4") as ds:
-                    if variable not in ds.data_vars:
-                        logger.error(
-                            "Variable not found",
-                            extra={"variable": variable, "path": str(path)},
-                        )
-                        raise VariableNotFoundError(variable, str(path))
+                with storage.open_nc(path) as nc_src:
+                    with xr.open_dataset(nc_src, engine="netcdf4") as ds:
+                        if variable not in ds.data_vars:
+                            logger.error(
+                                "Variable not found",
+                                extra={"variable": variable, "path": str(path)},
+                            )
+                            raise VariableNotFoundError(variable, str(path))
 
-                    data_array = ds[variable]
+                        data_array = ds[variable]
 
-                    if time_index >= data_array.sizes.get("time", 1):
-                        logger.error(
-                            "Time index out of range",
-                            extra={"index": time_index, "max": data_array.sizes.get("time", 1) - 1},
-                        )
-                        raise InvalidTimeIndexError(
-                            time_index, data_array.sizes.get("time", 1) - 1
-                        )
+                        if time_index >= data_array.sizes.get("time", 1):
+                            logger.error(
+                                "Time index out of range",
+                                extra={"index": time_index, "max": data_array.sizes.get("time", 1) - 1},
+                            )
+                            raise InvalidTimeIndexError(
+                                time_index, data_array.sizes.get("time", 1) - 1
+                            )
 
-                    slice_data: np.ndarray = data_array.isel(time=time_index).values.astype(
-                        np.float32
-                    )
+                        slice_data: np.ndarray = data_array.isel(time=time_index).values.astype(
+                            np.float32
+                        )
 
         except FileNotFoundError as exc:
             logger.error("NetCDF file not found", extra={"path": str(path)})
