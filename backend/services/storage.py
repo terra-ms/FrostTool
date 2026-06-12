@@ -59,6 +59,19 @@ def _npz_s3_key(path: Path) -> str:
 
 # ── NetCDF helpers ─────────────────────────────────────────────────────────────
 
+def _s3_folder_name(data_root: Path) -> str:
+    """
+    Return the leaf folder name for use as an S3 key prefix.
+
+    Calling data_root.name on Linux when data_root was built from a Windows-style
+    path (e.g. C:\\path\\tmean_v2) returns the entire string rather than just
+    'tmean_v2', because backslashes are not path separators on POSIX.  Splitting
+    on both separators makes this work correctly in both environments.
+    """
+    parts = [p for p in str(data_root).replace("\\", "/").split("/") if p]
+    return parts[-1] if parts else str(data_root)
+
+
 def find_nc_file(data_root: Path, year: int, date_str: str) -> str | Path:
     """
     Locate the NetCDF file whose name contains *date_str* (YYYYMMDD).
@@ -66,7 +79,7 @@ def find_nc_file(data_root: Path, year: int, date_str: str) -> str | Path:
     Raises FileNotFoundError if no match is found.
     """
     if S3_BUCKET:
-        prefix = f"{S3_BUCKET}/{data_root.name}/{year:04d}"
+        prefix = f"{S3_BUCKET}/{_s3_folder_name(data_root)}/{year:04d}"
         matches = _fs().glob(f"{prefix}/*{date_str}*.nc")
         if not matches:
             raise FileNotFoundError(
@@ -87,7 +100,7 @@ def list_year_dirs(data_root: Path) -> list[int]:
     """List year-numbered subdirectories under *data_root*."""
     if S3_BUCKET:
         try:
-            items = _fs().ls(f"{S3_BUCKET}/{data_root.name}", detail=False)
+            items = _fs().ls(f"{S3_BUCKET}/{_s3_folder_name(data_root)}", detail=False)
         except FileNotFoundError:
             return []
         years = []
