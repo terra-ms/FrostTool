@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-06-02 (session 7)
+Last updated: 2026-06-15 (session 9)
 
 ---
 
@@ -46,7 +46,8 @@ FrostTool/
 │   │   └── aggregation_service.py  min/max/mean aggregation over date ranges
 │   └── api/routes/
 │       ├── climate.py              /api/v1/* (raster, colorscale, value, timeseries, continents)
-│       └── gdd.py                  /api/v1/gdd/* (raster, colorscale, crops, available-years, timeseries)
+│       ├── gdd.py                  /api/v1/gdd/* (raster, colorscale, crops, available-years, timeseries, debug/s3)
+│       └── debug.py                /api/v1/debug/s3 — S3 connectivity diagnostic (step-by-step JSON report)
 ├── frontend/
 │   ├── app.py                      Dash app (use_pages=True), shared layout
 │   ├── config.py                   API_BASE_URL = http://localhost:8000/api/v1
@@ -279,7 +280,7 @@ When zooming out on the Frost Risk map, a vertical band roughly covering 0°–2
 - Set `updateWhenZooming: true` on `GeoRasterLayer` — no effect
 Next things to try: `keepBuffer: 4` on `GeoRasterLayer` to widen the tile buffer; calling `currentLayer.redraw()` after zoom animation settles; or switching to a zoom-threshold-based re-render approach (like the heatmap page).
 
-**For S3 deployment:** upload the `precomputed/` folder to S3 alongside the NetCDF data. The backend only needs to swap local `Path` I/O for `boto3` reads in `_read_year_stack` / `_read_gdd_result` — everything else is unchanged.
+**GDD warmup OOM on cold start (partially mitigated):** Peak memory during `_load_year_stack` was ~8 GB (151 global NC slices × 2 temp types held simultaneously). Fixed in `gdd_service.py` — Europe clip is now applied immediately after loading each temp type, and global arrays are `del`'d before loading the next. Peak is now ~4.5 GB. Task memory raised to 8 GB in the Fargate task definition. Monitor CloudWatch on first deploy to a new environment to confirm warmup completes without OOM.
 
 ---
 
@@ -360,12 +361,60 @@ All file I/O in the backend goes through this module. In local mode it uses `pat
 | Function | Purpose |
 |---|---|
 | `find_nc_file(data_root, year, date_str)` | Glob for a NetCDF by date; returns `s3://...` string or local `Path` |
+| `open_nc(path)` | Context manager: in S3 mode downloads to a named temp file via s3fs, yields the temp `Path` to `xr.open_dataset`, then deletes it. Local mode yields the `Path` directly. (The NetCDF4 C library cannot open `s3://` URLs natively — passing a real file path avoids errno -68.) |
 | `list_year_dirs(data_root)` | List year subdirectories (S3 `ls` or local `glob`) |
 | `list_nc_files(data_root, year)` | List `.nc` filenames in a year folder |
 | `npz_exists(path)` | Check if a precomputed `.npz` exists |
 | `load_npz(path)` | Load `.npz` → plain `dict` (arrays eagerly read before file closes) |
 | `save_npz(path, **arrays)` | Save `.npz` (S3: via `BytesIO`; local: direct write) |
 
+**Required ECS task definition environment variables (backend container):**
+
+| Variable | Example value | Purpose |
+|---|---|---|
+| `S3_BUCKET` | `frosttool-data` | Enables S3 mode; must match the actual bucket name |
+| `AWS_DEFAULT_REGION` | `eu-west-1` | boto3/s3fs region; without this, credential lookup via the ECS metadata endpoint may silently fail |
+| `PRECOMPUTED_DIR` | `precomputed` | S3 key prefix for `.npz` files; unset → defaults to a Windows path that creates garbled S3 keys on Linux |
+
 **IAM permissions required for the ECS task role:**
 - `s3:GetObject` + `s3:ListBucket` on the bucket (for reading NetCDF and precomputed files)
 - `s3:PutObject` on `precomputed/*` (so the backend can write newly computed `.npz` files)
+
+---
+
+## AWS Fargate deployment
+
+The app runs on AWS Fargate (region `us-east-1`) behind an Application Load Balancer. Infrastructure set up via the AWS Console:
+
+| Resource | Name |
+|---|---|
+| ECS cluster | `frosttool-cluster` |
+| Backend service | `frosttool-backend-service` (task def `frosttool-backend`, 2 vCPU / 8 GB) |
+| Frontend service | `frosttool-frontend-service` (task def `frosttool-frontend`, 0.5 vCPU / 1 GB) |
+| ALB | `frosttool-alb` — `/api/*` → backend (port 8000), `/*` → frontend (port 8050) |
+| ECR | `frosttool-backend`, `frosttool-frontend` |
+| Task role | `frosttool-task-role` (S3 read + precomputed write) |
+| Execution role | `ecsTaskExecutionRole` |
+
+CI/CD: GitHub Actions workflow (`.github/workflows/deploy.yml`) builds both images on push to `main`, pushes to ECR tagged with commit SHA + `latest`, then force-deploys both ECS services.
+
+---
+
+## S3 connection status — working as of 2026-06-15
+
+**Confirmed working:**
+- `find_nc_file` correctly resolves S3 URLs via `s3fs.glob`
+- IAM task role credentials picked up correctly (ECS metadata endpoint)
+- `open_nc` temp-file approach confirmed working — no more `[Errno -68]` errors
+- Backend successfully reads NetCDF files from S3 in production
+
+**Issues resolved during session 9:**
+
+| Issue | Root cause | Fix |
+|---|---|---|
+| `[Errno -68] NetCDF: I/O failure` | Deployed image was old (pre-fix); `open_nc` was passing `s3://` URL directly to NetCDF4 C library | Redeployed latest image; `open_nc` now downloads to a named temp file first |
+| S3 connection failing | `AWS_DEFAULT_REGION` not set in task definition; boto3 couldn't resolve regional endpoint | Added `AWS_DEFAULT_REGION` to task definition environment |
+| GDD raster 502 errors | Warmup OOM-killing the container (exit 137) — peak memory ~8 GB when loading 302 global NC slices | Increased task memory to 8 GB; fixed `_load_year_stack` to clip to Europe immediately and `del` global arrays between tmean/tmin loads — peak now ~4.5 GB |
+| `FutureWarning: Dataset.dims` | `dict(ds.dims)` deprecated in favour of `ds.sizes` | Fixed in `debug.py` and `gdd.py` |
+
+**Current status:** S3 reads are working. GDD raster may still time out or OOM on first cold start for a year whose `.npz` is not yet in S3 — wait for warmup completion (`GDD warm-up: year XXXX complete` in CloudWatch) before testing that year.

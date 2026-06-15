@@ -187,21 +187,26 @@ def _load_year_stack(year: int) -> YearStack:
     start = date(year, *_SEASON_START)
     end = date(year, *_SEASON_END)
 
+    # Load mean first to get grid dimensions, then clip to Europe immediately and
+    # free the global arrays before loading tmin — avoids holding ~8 GB in memory.
     mean_pairs = NetCDFService.get_temperature_slice_range(start, end, temp_type="mean")
-    min_pairs = NetCDFService.get_temperature_slice_range(start, end, temp_type="min")
+    lat_size, lon_size = mean_pairs[0][1].shape
+    r0, r1, c0, c1 = _europe_row_col_slice(lat_size, lon_size)
+    mean_by_date = {d: arr[r0:r1, c0:c1] for d, arr in mean_pairs}
+    del mean_pairs
 
-    mean_by_date = {d: arr for d, arr in mean_pairs}
-    min_by_date = {d: arr for d, arr in min_pairs}
+    min_pairs = NetCDFService.get_temperature_slice_range(start, end, temp_type="min")
+    min_by_date = {d: arr[r0:r1, c0:c1] for d, arr in min_pairs}
+    del min_pairs
+
     common = sorted(set(mean_by_date) & set(min_by_date))
 
     if not common:
         raise ValueError(f"No overlapping tmean/tmin dates for {year} season")
 
-    lat_size, lon_size = mean_by_date[common[0]].shape
-    r0, r1, c0, c1 = _europe_row_col_slice(lat_size, lon_size)
-
-    tmean_stack = np.stack([mean_by_date[d][r0:r1, c0:c1] for d in common], axis=0)
-    tmin_stack = np.stack([min_by_date[d][r0:r1, c0:c1] for d in common], axis=0)
+    tmean_stack = np.stack([mean_by_date[d] for d in common], axis=0)
+    tmin_stack = np.stack([min_by_date[d] for d in common], axis=0)
+    del mean_by_date, min_by_date
 
     lat_idx = np.linspace(90, -90, lat_size)
     lon_idx = np.linspace(-180, 180, lon_size)

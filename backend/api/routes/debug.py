@@ -151,7 +151,7 @@ async def debug_s3() -> JSONResponse:
         import xarray as xr  # noqa: PLC0415
         with xr.open_dataset(tmp_path, engine="netcdf4") as ds:
             variables = list(ds.data_vars)
-            dims = dict(ds.dims)
+            dims = dict(ds.sizes)
             s["detail"] = {"variables": variables, "dims": dims}
 
     # ── 11. Cleanup temp file ─────────────────────────────────────────────────
