@@ -154,7 +154,7 @@ def get_available_gdd_years() -> list[int]:
         return _available_years
 
     def _year_folders(temp_type: str) -> set[int]:
-        root = TEMPERATURE_SOURCES[temp_type]["path"]
+        root = Path(str(TEMPERATURE_SOURCES[temp_type]["path"]))
         return set(storage.list_year_dirs(root))
 
     _available_years = sorted(_year_folders("mean") & _year_folders("min"))

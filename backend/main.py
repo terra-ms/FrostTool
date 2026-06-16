@@ -2,6 +2,7 @@ import logging
 import os
 import sys
 import threading
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -66,7 +67,7 @@ def _warmup_gdd_stacks() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Pre-populate the available-years cache synchronously before the warm-up thread
     # starts. The warm-up saturates the data drive with concurrent HDF5 reads; without
     # this, the first call to get_available_gdd_years() inside an async endpoint would

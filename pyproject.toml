@@ -19,6 +19,7 @@ disallow_untyped_calls = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true
 check_untyped_defs = true
+explicit_package_bases = true
 
 [tool.black]
 line-length = 88
@@ -47,3 +48,14 @@ ignore = [
     "B008",  # function calls in default args — standard FastAPI Depends/Query pattern
     "C408",  # dict() call — Plotly API uses dict() for styling kwargs throughout
 ]
+
+[[tool.mypy.overrides]]
+module = ["s3fs", "diskcache", "rasterio", "rasterio.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# Debug/diagnostic endpoints use many untyped nested closures; relax strictness there.
+module = ["backend.api.routes.gdd", "backend.api.routes.debug"]
+disallow_untyped_defs = false
+disallow_untyped_calls = false
+disallow_any_generics = false

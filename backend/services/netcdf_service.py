@@ -172,7 +172,7 @@ class NetCDFService:
         if cached is not None:
             return cached
 
-        path: Path = NetCDFService.resolve_nc_path(date_obj, temp_type)
+        path = Path(NetCDFService.resolve_nc_path(date_obj, temp_type))
 
         try:
             with (

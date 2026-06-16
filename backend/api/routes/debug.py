@@ -17,7 +17,7 @@ from fastapi.responses import JSONResponse
 router = APIRouter(prefix="/api/v1/debug", tags=["debug"])
 
 
-def _step(results: list, name: str):
+def _step(results: list, name: str):  # type: ignore[no-untyped-def]
     """Context manager that appends a pass/fail entry to *results*."""
     import contextlib
 

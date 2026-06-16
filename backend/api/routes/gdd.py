@@ -216,7 +216,7 @@ async def debug_s3() -> JSONResponse:
     _log = logging.getLogger(__name__)
     steps: list[dict] = []
 
-    def step(name: str, fn):
+    def step(name: str, fn):  # type: ignore[no-untyped-def]
         entry: dict = {"step": name, "ok": False, "detail": None}
         steps.append(entry)
         try:
@@ -262,7 +262,7 @@ async def debug_s3() -> JSONResponse:
     # 4. resolve folder names from config paths
     from backend.core.config import TEMPERATURE_SOURCES  # noqa: PLC0415
 
-    def _fname(p) -> str:
+    def _fname(p) -> str:  # type: ignore[no-untyped-def]
         parts = [x for x in str(p).replace("\\", "/").split("/") if x]
         return parts[-1] if parts else str(p)
 
@@ -349,13 +349,14 @@ async def debug_s3() -> JSONResponse:
     def _xr_open():
         import xarray as xr  # noqa: PLC0415
 
+        assert tmp_path is not None
         with xr.open_dataset(tmp_path, engine="netcdf4") as ds:
             return {"variables": list(ds.data_vars), "dims": dict(ds.sizes)}
 
     step("xarray_open", _xr_open)
 
     # 11. cleanup
-    step("cleanup", lambda: os.unlink(tmp_path) or "deleted")  # type: ignore[func-returns-value]
+    step("cleanup", lambda: os.unlink(tmp_path) or "deleted")  # type: ignore[func-returns-value, arg-type]
 
     ok = all(s["ok"] for s in steps)
     _log.info("S3 debug: %s", "PASS" if ok else "FAIL")

@@ -20,6 +20,7 @@ from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from functools import lru_cache
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -33,7 +34,7 @@ def using_s3() -> bool:
 
 
 @lru_cache(maxsize=1)
-def _fs():
+def _fs() -> Any:
     """Lazily-imported, cached s3fs filesystem. Not touched in local mode."""
     import s3fs  # noqa: PLC0415
 
@@ -84,12 +85,12 @@ def find_nc_file(data_root: Path, year: int, date_str: str) -> str | Path:
     """
     if S3_BUCKET:
         prefix = f"{S3_BUCKET}/{_s3_folder_name(data_root)}/{year:04d}"
-        matches = _fs().glob(f"{prefix}/*{date_str}*.nc")
-        if not matches:
+        s3_matches: list[Any] = list(_fs().glob(f"{prefix}/*{date_str}*.nc"))
+        if not s3_matches:
             raise FileNotFoundError(f"No NetCDF for {date_str} in s3://{prefix}/")
-        if len(matches) > 1:
+        if len(s3_matches) > 1:
             logger.warning("Multiple S3 matches for %s; using first", date_str)
-        return f"s3://{matches[0]}"
+        return str(f"s3://{s3_matches[0]}")
 
     folder = data_root / f"{year:04d}"
     matches = list(folder.glob(f"*{date_str}*.nc"))
@@ -166,11 +167,11 @@ def open_nc(path: str | Path) -> Generator[Path, None, None]:
 
 def npz_exists(path: Path) -> bool:
     if S3_BUCKET:
-        return _fs().exists(f"{S3_BUCKET}/{_npz_s3_key(path)}")
+        return bool(_fs().exists(f"{S3_BUCKET}/{_npz_s3_key(path)}"))
     return path.exists()
 
 
-def load_npz(path: Path) -> dict:
+def load_npz(path: Path) -> dict[str, Any]:
     """Load a .npz and return all arrays as a plain dict (eagerly read)."""
     if S3_BUCKET:
         key = f"{S3_BUCKET}/{_npz_s3_key(path)}"
@@ -184,11 +185,11 @@ def load_npz(path: Path) -> dict:
         return dict(data)
 
 
-def save_npz(path: Path, **arrays) -> None:
+def save_npz(path: Path, **arrays: np.ndarray) -> None:
     """Save arrays as compressed .npz to S3 or local disk."""
     if S3_BUCKET:
         buf = io.BytesIO()
-        np.savez_compressed(buf, **arrays)
+        np.savez_compressed(buf, **arrays)  # type: ignore[arg-type]
         buf.seek(0)
         key = f"{S3_BUCKET}/{_npz_s3_key(path)}"
         logger.info("Saving npz to S3: %s", key)
@@ -197,5 +198,5 @@ def save_npz(path: Path, **arrays) -> None:
         return
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(path, **arrays)
+    np.savez_compressed(path, **arrays)  # type: ignore[arg-type]
     logger.info("Saved npz locally: %s", path)

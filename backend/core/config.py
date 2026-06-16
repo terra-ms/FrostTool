@@ -35,8 +35,8 @@ PRECOMPUTED_DIR: Path = Path(
 DEFAULT_TEMP_TYPE: str = "mean"
 
 # Legacy support
-DATA_ROOT: Path = TEMPERATURE_SOURCES[DEFAULT_TEMP_TYPE]["path"]
-VARIABLE: str = TEMPERATURE_SOURCES[DEFAULT_TEMP_TYPE]["variable"]
+DATA_ROOT: Path = Path(str(TEMPERATURE_SOURCES[DEFAULT_TEMP_TYPE]["path"]))
+VARIABLE: str = str(TEMPERATURE_SOURCES[DEFAULT_TEMP_TYPE]["variable"])
 
 CACHE_DIR: Path = Path(
     os.environ.get("CACHE_DIR", str(Path(__file__).parent.parent.parent / ".cache"))

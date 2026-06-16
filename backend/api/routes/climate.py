@@ -83,7 +83,7 @@ async def get_raster(
         elif date_str:
             # Single date
             date_obj: date = date.fromisoformat(date_str)
-            raster_bytes: bytes = service.get_raster_bytes(
+            raster_bytes = service.get_raster_bytes(
                 date_obj,
                 temp_type=temp_type,
                 continent=continent,
