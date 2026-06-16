@@ -15,10 +15,10 @@ import io
 import logging
 import os
 import tempfile
-from contextlib import contextmanager
+from collections.abc import Generator
+from contextlib import contextmanager, suppress
 from functools import lru_cache
 from pathlib import Path
-from typing import Generator
 
 import numpy as np
 
@@ -158,10 +158,8 @@ def open_nc(path: str | Path) -> Generator[Path, None, None]:
                 f.write(_fs().cat(key))
             yield Path(tmp_path)
         finally:
-            try:
+            with suppress(OSError):
                 os.unlink(tmp_path)
-            except OSError:
-                pass
     else:
         yield Path(path) if not isinstance(path, Path) else path
 

@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 import xarray as xr
 
-
 VARIABLE = "Temperature_Air_2m_Mean_24h"
 TEST_DATE = date(2020, 12, 31)
 TEST_DATE_STR = "20201231"

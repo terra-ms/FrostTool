@@ -1,7 +1,7 @@
 """Unit tests for frontend callback logic (no browser required)."""
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
 
 # ---------------------------------------------------------------------------
 # show_date_status
@@ -108,8 +108,9 @@ class TestUpdateTimeseriesGraph:
         assert any("Error" in str(ann.text) for ann in fig.layout.annotations)
 
     def test_successful_api_response_builds_figure(self) -> None:
-        import plotly.graph_objects as go
         from unittest.mock import MagicMock
+
+        import plotly.graph_objects as go
 
         mock_response = MagicMock()
         mock_response.raise_for_status.return_value = None
@@ -134,6 +135,3 @@ class TestUpdateTimeseriesGraph:
         assert len(fig.data) == 1
         # Values converted from K to °C
         assert list(fig.data[0].y) == pytest.approx([275.15 - 273.15, 278.15 - 273.15])
-
-
-import pytest

@@ -1,28 +1,28 @@
 from datetime import date
 
-from fastapi import APIRouter, Query, HTTPException, Depends
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from backend.api.dependencies import get_netcdf_service
+from backend.core.config import CONTINENTS
+from backend.core.exceptions import (
+    DatasetNotFoundError,
+    InvalidTimeIndexError,
+    VariableNotFoundError,
+)
 from backend.models.domain import ColorscaleInfo
-from backend.services.aggregation_service import VALID_AGGREGATIONS
-from backend.services.netcdf_service import NetCDFService
 from backend.models.schemas import (
     AvailableDatesResponse,
-    ColorscaleResponse,
     CellValueResponse,
+    ColorscaleResponse,
     ContinentBounds,
     ContinentDetail,
     HealthResponse,
-    TimeseriesResponse,
     TimeseriesDataPoint,
+    TimeseriesResponse,
 )
-from backend.core.exceptions import (
-    DatasetNotFoundError,
-    VariableNotFoundError,
-    InvalidTimeIndexError,
-)
-from backend.core.config import CONTINENTS
+from backend.services.aggregation_service import VALID_AGGREGATIONS
+from backend.services.netcdf_service import NetCDFService
 
 router = APIRouter(prefix="/api/v1", tags=["climate"])
 
@@ -36,7 +36,7 @@ async def get_available_dates(
         dates: list[str] = service.get_available_dates(temp_type)
         return AvailableDatesResponse(dates=dates)
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get(
@@ -59,10 +59,10 @@ async def get_raster(
         if start_date and end_date:
             start_obj: date = date.fromisoformat(start_date)
             end_obj: date = date.fromisoformat(end_date)
-            
+
             if agg_type not in VALID_AGGREGATIONS:
                 raise ValueError(f"Invalid aggregation type: {agg_type}")
-            
+
             raster_bytes: bytes = service.get_raster_bytes_aggregated(
                 start_obj, end_obj, agg_type, temp_type=temp_type, continent=continent, zoom_level=zoom_level
             )
@@ -76,18 +76,18 @@ async def get_raster(
             filename = f"{date_str}.tif"
         else:
             raise ValueError("Either date_str or (start_date and end_date) must be provided")
-        
+
         return StreamingResponse(
             iter([raster_bytes]),
             media_type="image/tiff",
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail="No data for the specified date(s)")
+        raise HTTPException(status_code=404, detail="No data for the specified date(s)") from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/colorscale", response_model=ColorscaleResponse)
@@ -123,11 +123,11 @@ async def get_colorscale(
             units=info.units,
         )
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail="No data for the specified date(s)")
+        raise HTTPException(status_code=404, detail="No data for the specified date(s)") from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/value", response_model=CellValueResponse)
@@ -143,11 +143,11 @@ async def get_cell_value(
         value: float = service.get_cell_value(date_obj, lat, lon, temp_type=temp_type)
         return CellValueResponse(value=value, lat=lat, lon=lon, date=date_str)
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No data for date {date_str}")
+        raise HTTPException(status_code=404, detail=f"No data for date {date_str}") from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/timeseries", response_model=TimeseriesResponse)
@@ -163,16 +163,16 @@ async def get_timeseries(
     try:
         start_obj: date = date.fromisoformat(start_date)
         end_obj: date = date.fromisoformat(end_date)
-        
+
         timeseries_data: list[tuple[date, float]] = service.get_cell_timeseries(
             start_obj, end_obj, lat, lon, temp_type=temp_type
         )
-        
+
         data_points = [
             TimeseriesDataPoint(date=d.isoformat(), value=v)
             for d, v in timeseries_data
         ]
-        
+
         return TimeseriesResponse(
             lat=lat,
             lon=lon,
@@ -182,11 +182,11 @@ async def get_timeseries(
             units="K",
         )
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No data for date range {start_date} to {end_date}")
+        raise HTTPException(status_code=404, detail=f"No data for date range {start_date} to {end_date}") from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/continents", response_model=dict[str, ContinentDetail])

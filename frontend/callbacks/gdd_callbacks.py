@@ -6,7 +6,10 @@ import plotly.graph_objects as go
 import requests
 from dash import Input, Output, State, callback, callback_context, clientside_callback
 
-from frontend.components.gdd_map_component import get_gdd_map_html, get_gdd_map_html_with_raster
+from frontend.components.gdd_map_component import (
+    get_gdd_map_html,
+    get_gdd_map_html_with_raster,
+)
 from frontend.config import API_BASE_URL, PUBLIC_API_URL
 
 logger = logging.getLogger(__name__)

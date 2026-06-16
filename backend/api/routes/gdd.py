@@ -1,10 +1,10 @@
-import io
 import logging
 import os
 import tempfile
 import traceback
-import numpy as np
 from datetime import date
+
+import numpy as np
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -39,7 +39,7 @@ async def get_available_years() -> GDDAvailableYearsResponse:
             max_year=years[-1] if years else 2007,
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/crops", response_model=CropsResponse)
@@ -50,7 +50,7 @@ async def get_crops() -> CropsResponse:
             crops=[CropInfo(name=k, display_name=v.display_name) for k, v in crops.items()]
         )
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get(
@@ -95,9 +95,9 @@ async def get_gdd_raster(
     except HTTPException:
         raise
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No climate data for year {year}")
+        raise HTTPException(status_code=404, detail=f"No climate data for year {year}") from None
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/timeseries", response_model=GDDTimeseriesResponse)
@@ -136,11 +136,11 @@ async def get_gdd_timeseries_endpoint(
     except HTTPException:
         raise
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc))
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No climate data for year {year}")
+        raise HTTPException(status_code=404, detail=f"No climate data for year {year}") from None
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/colorscale", response_model=GDDColorscaleResponse)
@@ -170,9 +170,9 @@ async def get_gdd_colorscale(
     except HTTPException:
         raise
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No climate data for year {year}")
+        raise HTTPException(status_code=404, detail=f"No climate data for year {year}") from None
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/debug/s3")

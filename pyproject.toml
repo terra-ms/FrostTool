@@ -27,6 +27,8 @@ target-version = ["py311"]
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+
+[tool.ruff.lint]
 select = [
     "E",
     "F",
@@ -34,11 +36,14 @@ select = [
     "I",
     "N",
     "UP",
-    "ANN",
     "B",
     "A",
     "C4",
     "PIE",
     "SIM",
 ]
-ignore = ["E501"]
+ignore = [
+    "E501",  # line too long — black handles formatting
+    "B008",  # function calls in default args — standard FastAPI Depends/Query pattern
+    "C408",  # dict() call — Plotly API uses dict() for styling kwargs throughout
+]

@@ -1,7 +1,7 @@
-from dash import html, dcc
 import dash_bootstrap_components as dbc
+from dash import dcc, html
 
-from .map_component import get_map_html, API
+from .map_component import API, get_map_html
 
 
 def create_map_frame() -> html.Iframe:

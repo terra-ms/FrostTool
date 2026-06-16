@@ -1,12 +1,12 @@
 """Unit tests for NetCDFService, AggregationService, and TemperatureCache."""
-from datetime import date, timedelta
+from datetime import date
 from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
 import pytest
 
-from tests.conftest import VARIABLE, TEST_DATE, make_nc_file
+from tests.conftest import TEST_DATE, VARIABLE, make_nc_file
 
 # Patch target for the config dict used inside netcdf_service
 _SOURCES_TARGET = "backend.services.netcdf_service.TEMPERATURE_SOURCES"
@@ -131,22 +131,20 @@ class TestNetCDFServiceResolvePath:
         from backend.core.exceptions import DatasetNotFoundError
         from backend.services.netcdf_service import NetCDFService
 
-        with patch(_SOURCES_TARGET, _sources(data_root)):
-            with pytest.raises(DatasetNotFoundError):
-                NetCDFService.resolve_nc_path(date(2099, 1, 1), "mean")
+        with patch(_SOURCES_TARGET, _sources(data_root)), pytest.raises(DatasetNotFoundError):
+            NetCDFService.resolve_nc_path(date(2099, 1, 1), "mean")
 
     def test_unknown_temp_type_raises(self, data_root: Path) -> None:
         from backend.services.netcdf_service import NetCDFService
 
-        with patch(_SOURCES_TARGET, _sources(data_root)):
-            with pytest.raises(ValueError, match="Unknown temperature type"):
-                NetCDFService.resolve_nc_path(TEST_DATE, "bogus")
+        with patch(_SOURCES_TARGET, _sources(data_root)), pytest.raises(ValueError, match="Unknown temperature type"):
+            NetCDFService.resolve_nc_path(TEST_DATE, "bogus")
 
 
 class TestNetCDFServiceGetSlice:
     def test_returns_float32_array(self, tmp_path, data_root: Path, nc_file: Path) -> None:
-        from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
+        from backend.services.netcdf_service import NetCDFService
 
         fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
@@ -159,8 +157,8 @@ class TestNetCDFServiceGetSlice:
         assert arr.ndim == 2
 
     def test_values_in_kelvin_range(self, tmp_path, data_root: Path, nc_file: Path) -> None:
-        from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
+        from backend.services.netcdf_service import NetCDFService
 
         fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
@@ -173,8 +171,8 @@ class TestNetCDFServiceGetSlice:
         assert float(np.nanmax(arr)) <= 350.0
 
     def test_cache_hit_returns_same_array(self, tmp_path, data_root: Path, nc_file: Path) -> None:
-        from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
+        from backend.services.netcdf_service import NetCDFService
 
         fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
@@ -190,8 +188,8 @@ class TestNetCDFServiceGetSlice:
 class TestNetCDFServiceColorscale:
     def test_colorscale_info_fields(self, tmp_path, data_root: Path, nc_file: Path) -> None:
         from backend.models.domain import ColorscaleInfo
-        from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
+        from backend.services.netcdf_service import NetCDFService
 
         fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
@@ -207,8 +205,8 @@ class TestNetCDFServiceColorscale:
 
 class TestNetCDFServiceCellValue:
     def test_cell_value_is_float(self, tmp_path, data_root: Path, nc_file: Path) -> None:
-        from backend.services.netcdf_service import NetCDFService
         from backend.services.cache_service import TemperatureCache
+        from backend.services.netcdf_service import NetCDFService
 
         fresh_cache = TemperatureCache(ttl_seconds=60, cache_dir=tmp_path)
         with (
@@ -304,9 +302,8 @@ class TestNetCDFServiceSliceRange:
                 NetCDFService,
                 "get_temperature_slice",
                 side_effect=DatasetNotFoundError(date(2099, 1, 1)),
-            ),
+            ),pytest.raises(DatasetNotFoundError)
         ):
-            with pytest.raises(DatasetNotFoundError):
-                NetCDFService.get_temperature_slice_range(
-                    date(2099, 1, 1), date(2099, 1, 3), temp_type="mean"
-                )
+            NetCDFService.get_temperature_slice_range(
+                date(2099, 1, 1), date(2099, 1, 3), temp_type="mean"
+            )

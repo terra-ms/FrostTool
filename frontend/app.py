@@ -4,8 +4,8 @@ from pathlib import Path
 import dash
 import dash_bootstrap_components as dbc
 
-from .components.controls import create_shared_header
 from . import callbacks  # noqa: F401 — registers all callbacks
+from .components.controls import create_shared_header
 
 app = dash.Dash(
     __name__,

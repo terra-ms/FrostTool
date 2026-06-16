@@ -7,7 +7,12 @@ from typing import NamedTuple
 
 import numpy as np
 
-from backend.core.config import CONTINENTS, CROPS_CONFIG_PATH, PRECOMPUTED_DIR, TEMPERATURE_SOURCES
+from backend.core.config import (
+    CONTINENTS,
+    CROPS_CONFIG_PATH,
+    PRECOMPUTED_DIR,
+    TEMPERATURE_SOURCES,
+)
 from backend.services import storage
 from backend.services.netcdf_service import NetCDFService
 

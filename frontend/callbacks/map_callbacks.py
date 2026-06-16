@@ -2,13 +2,23 @@ from datetime import datetime
 
 import dash
 import requests
-from dash import Input, Output, State, callback, callback_context, clientside_callback
-from dash import html
+from dash import (
+    Input,
+    Output,
+    State,
+    callback,
+    callback_context,
+    clientside_callback,
+    html,
+)
 
-from frontend.components.map_component import API, get_map_html, get_map_html_with_initial_raster
+from frontend.components.map_component import (
+    API,
+    get_map_html,
+    get_map_html_with_initial_raster,
+)
 from frontend.config import PUBLIC_API_URL
 from frontend.utils import kelvin_to_celsius
-
 
 # ---------------------------------------------------------------------------
 # Coordinate bridge: iframe → Dash store

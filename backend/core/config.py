@@ -1,5 +1,5 @@
-from pathlib import Path
 import os
+from pathlib import Path
 
 _DATA_ROOT_MEAN: Path = Path(os.environ.get("DATA_ROOT_MEAN", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2"))
 _DATA_ROOT_MIN: Path = Path(os.environ.get("DATA_ROOT_MIN", r"C:\Olivier\Terra local\data\AgERA5\tmin_v2"))

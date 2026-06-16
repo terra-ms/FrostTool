@@ -12,13 +12,13 @@ from rasterio.crs import CRS
 from rasterio.transform import from_bounds
 
 from backend.core.config import CONTINENTS, TEMPERATURE_SOURCES
-from backend.services import storage
 from backend.core.exceptions import (
     DatasetNotFoundError,
     InvalidTimeIndexError,
     VariableNotFoundError,
 )
 from backend.models.domain import ColorscaleInfo
+from backend.services import storage
 from backend.services.aggregation_service import AggregationService
 from backend.services.cache_service import temperature_cache
 
@@ -157,7 +157,7 @@ class NetCDFService:
             return storage.find_nc_file(data_root, date_obj.year, date_str)
         except FileNotFoundError:
             logger.error("NetCDF file not found for %s (%s)", date_obj, temp_type)
-            raise DatasetNotFoundError(date_obj)
+            raise DatasetNotFoundError(date_obj) from None
 
     @staticmethod
     def get_temperature_slice(
@@ -175,9 +175,7 @@ class NetCDFService:
         path: Path = NetCDFService.resolve_nc_path(date_obj, temp_type)
 
         try:
-            with _HDF5_LOCK:
-                with storage.open_nc(path) as nc_src:
-                    with xr.open_dataset(nc_src, engine="netcdf4") as ds:
+            with _HDF5_LOCK, storage.open_nc(path) as nc_src, xr.open_dataset(nc_src, engine="netcdf4") as ds:
                         if variable not in ds.data_vars:
                             logger.error(
                                 "Variable not found",

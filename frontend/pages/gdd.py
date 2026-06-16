@@ -1,6 +1,6 @@
 import dash
-from dash import dcc, html
 import dash_bootstrap_components as dbc
+from dash import dcc, html
 
 from frontend.components.gdd_map_component import create_gdd_map_frame
 

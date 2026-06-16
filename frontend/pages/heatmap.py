@@ -1,6 +1,6 @@
 import dash
-from dash import dcc, html
 import dash_bootstrap_components as dbc
+from dash import dcc, html
 
 from frontend.components.controls import create_controls, create_map_frame
 from frontend.components.timeline_graph import create_graph_container
