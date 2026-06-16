@@ -74,7 +74,9 @@ def update_timeseries_graph(
     raster_trigger: dict | None,
 ) -> go.Figure:
     if not clicked_coord or not raster_trigger:
-        return go.Figure().update_layout(**_EMPTY_LAYOUT, margin=dict(l=40, r=20, t=30, b=40))
+        return go.Figure().update_layout(
+            **_EMPTY_LAYOUT, margin=dict(l=40, r=20, t=30, b=40)
+        )
 
     lat = clicked_coord.get("lat")
     lon = clicked_coord.get("lon")
@@ -89,7 +91,9 @@ def update_timeseries_graph(
         end_date = raster_trigger.get("date")
 
     if not start_date or not end_date:
-        return go.Figure().update_layout(**_EMPTY_LAYOUT, margin=dict(l=40, r=20, t=30, b=40))
+        return go.Figure().update_layout(
+            **_EMPTY_LAYOUT, margin=dict(l=40, r=20, t=30, b=40)
+        )
 
     try:
         ts_url = (

@@ -5,6 +5,7 @@ GET /api/v1/debug/s3
 Walks through every step of the S3 read path and returns a JSON report.
 Remove or gate behind auth before a public release.
 """
+
 import os
 import tempfile
 import traceback
@@ -54,6 +55,7 @@ async def debug_s3() -> JSONResponse:
     # ── 2. Import s3fs and build filesystem object ────────────────────────────
     with _step(results, "s3fs_import") as s:
         import s3fs  # noqa: PLC0415
+
         fs = s3fs.S3FileSystem()
         s["detail"] = f"s3fs version {s3fs.__version__}"
 
@@ -61,8 +63,13 @@ async def debug_s3() -> JSONResponse:
         return JSONResponse({"results": results})
 
     if not s3_bucket:
-        results.append({"step": "s3_bucket_check", "ok": False,
-                         "detail": "S3_BUCKET env var is not set — stopping here"})
+        results.append(
+            {
+                "step": "s3_bucket_check",
+                "ok": False,
+                "detail": "S3_BUCKET env var is not set — stopping here",
+            }
+        )
         return JSONResponse({"results": results})
 
     # ── 3. List bucket root ───────────────────────────────────────────────────
@@ -149,6 +156,7 @@ async def debug_s3() -> JSONResponse:
     # ── 10. Open with xarray ──────────────────────────────────────────────────
     with _step(results, "xarray_open") as s:
         import xarray as xr  # noqa: PLC0415
+
         with xr.open_dataset(tmp_path, engine="netcdf4") as ds:
             variables = list(ds.data_vars)
             dims = dict(ds.sizes)
@@ -161,4 +169,6 @@ async def debug_s3() -> JSONResponse:
         s["detail"] = "temp file deleted"
 
     overall_ok = all(r["ok"] for r in results)
-    return JSONResponse({"ok": overall_ok, "results": results}, status_code=200 if overall_ok else 500)
+    return JSONResponse(
+        {"ok": overall_ok, "results": results}, status_code=200 if overall_ok else 500
+    )

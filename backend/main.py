@@ -45,7 +45,9 @@ def _warmup_gdd_stacks() -> None:
         crops = load_crops()
         logger.info(
             "GDD warm-up starting: %d year(s) from %d, %d crop(s)",
-            len(years), GDD_WARMUP_MIN_YEAR, len(crops),
+            len(years),
+            GDD_WARMUP_MIN_YEAR,
+            len(crops),
         )
 
         # Most recent years first — most likely to be requested first.
@@ -71,6 +73,7 @@ async def lifespan(app: FastAPI):
     # run its Path.glob() while the drive is under load, blocking the Uvicorn event loop
     # and causing all pending requests (including the trivial /gdd/crops call) to time out.
     from backend.services.gdd_service import get_available_gdd_years
+
     get_available_gdd_years()
     logger.info("Available GDD years cached: %s", get_available_gdd_years())
 
@@ -117,4 +120,5 @@ app = create_app()
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)

@@ -42,16 +42,24 @@ async def get_available_dates(
 @router.get(
     "/raster",
     response_class=StreamingResponse,
-    responses={200: {"content": {"image/tiff": {}}, "description": "GeoTIFF raster tile"}},
+    responses={
+        200: {"content": {"image/tiff": {}}, "description": "GeoTIFF raster tile"}
+    },
 )
 async def get_raster(
     date_str: str | None = Query(None, description="Date in YYYY-MM-DD format"),
-    start_date: str | None = Query(None, description="Range start in YYYY-MM-DD format (for aggregation)"),
-    end_date: str | None = Query(None, description="Range end in YYYY-MM-DD format (for aggregation)"),
+    start_date: str | None = Query(
+        None, description="Range start in YYYY-MM-DD format (for aggregation)"
+    ),
+    end_date: str | None = Query(
+        None, description="Range end in YYYY-MM-DD format (for aggregation)"
+    ),
     agg_type: str = Query("min", description="Aggregation type: min, max, or mean"),
     temp_type: str = Query("mean", description="Temperature type: mean or min"),
     continent: str | None = Query(None, description="Optional continent name"),
-    zoom_level: int | None = Query(None, ge=0, le=19, description="Map zoom level (0-19) for adaptive resolution"),
+    zoom_level: int | None = Query(
+        None, ge=0, le=19, description="Map zoom level (0-19) for adaptive resolution"
+    ),
     service: NetCDFService = Depends(get_netcdf_service),
 ) -> StreamingResponse:
     try:
@@ -64,18 +72,28 @@ async def get_raster(
                 raise ValueError(f"Invalid aggregation type: {agg_type}")
 
             raster_bytes: bytes = service.get_raster_bytes_aggregated(
-                start_obj, end_obj, agg_type, temp_type=temp_type, continent=continent, zoom_level=zoom_level
+                start_obj,
+                end_obj,
+                agg_type,
+                temp_type=temp_type,
+                continent=continent,
+                zoom_level=zoom_level,
             )
             filename = f"{start_date}_to_{end_date}_{agg_type}.tif"
         elif date_str:
             # Single date
             date_obj: date = date.fromisoformat(date_str)
             raster_bytes: bytes = service.get_raster_bytes(
-                date_obj, temp_type=temp_type, continent=continent, zoom_level=zoom_level
+                date_obj,
+                temp_type=temp_type,
+                continent=continent,
+                zoom_level=zoom_level,
             )
             filename = f"{date_str}.tif"
         else:
-            raise ValueError("Either date_str or (start_date and end_date) must be provided")
+            raise ValueError(
+                "Either date_str or (start_date and end_date) must be provided"
+            )
 
         return StreamingResponse(
             iter([raster_bytes]),
@@ -83,7 +101,9 @@ async def get_raster(
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail="No data for the specified date(s)") from None
+        raise HTTPException(
+            status_code=404, detail="No data for the specified date(s)"
+        ) from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -93,8 +113,12 @@ async def get_raster(
 @router.get("/colorscale", response_model=ColorscaleResponse)
 async def get_colorscale(
     date_str: str | None = Query(None, description="Date in YYYY-MM-DD format"),
-    start_date: str | None = Query(None, description="Range start in YYYY-MM-DD format (for aggregation)"),
-    end_date: str | None = Query(None, description="Range end in YYYY-MM-DD format (for aggregation)"),
+    start_date: str | None = Query(
+        None, description="Range start in YYYY-MM-DD format (for aggregation)"
+    ),
+    end_date: str | None = Query(
+        None, description="Range end in YYYY-MM-DD format (for aggregation)"
+    ),
     agg_type: str = Query("min", description="Aggregation type: min, max, or mean"),
     temp_type: str = Query("mean", description="Temperature type: mean or min"),
     service: NetCDFService = Depends(get_netcdf_service),
@@ -114,7 +138,9 @@ async def get_colorscale(
             date_obj: date = date.fromisoformat(date_str)
             info = service.get_colorscale_info(date_obj, temp_type=temp_type)
         else:
-            raise ValueError("Either date_str or (start_date and end_date) must be provided")
+            raise ValueError(
+                "Either date_str or (start_date and end_date) must be provided"
+            )
 
         return ColorscaleResponse(
             min_value=info.min_value,
@@ -123,7 +149,9 @@ async def get_colorscale(
             units=info.units,
         )
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail="No data for the specified date(s)") from None
+        raise HTTPException(
+            status_code=404, detail="No data for the specified date(s)"
+        ) from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -143,7 +171,9 @@ async def get_cell_value(
         value: float = service.get_cell_value(date_obj, lat, lon, temp_type=temp_type)
         return CellValueResponse(value=value, lat=lat, lon=lon, date=date_str)
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No data for date {date_str}") from None
+        raise HTTPException(
+            status_code=404, detail=f"No data for date {date_str}"
+        ) from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:
@@ -169,8 +199,7 @@ async def get_timeseries(
         )
 
         data_points = [
-            TimeseriesDataPoint(date=d.isoformat(), value=v)
-            for d, v in timeseries_data
+            TimeseriesDataPoint(date=d.isoformat(), value=v) for d, v in timeseries_data
         ]
 
         return TimeseriesResponse(
@@ -182,7 +211,9 @@ async def get_timeseries(
             units="K",
         )
     except DatasetNotFoundError:
-        raise HTTPException(status_code=404, detail=f"No data for date range {start_date} to {end_date}") from None
+        raise HTTPException(
+            status_code=404, detail=f"No data for date range {start_date} to {end_date}"
+        ) from None
     except (ValueError, VariableNotFoundError, InvalidTimeIndexError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:

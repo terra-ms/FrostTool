@@ -21,7 +21,9 @@ class AggregationService:
         if not slices:
             raise ValueError("No data slices to aggregate")
         if aggregation not in VALID_AGGREGATIONS:
-            raise ValueError(f"Unknown aggregation '{aggregation}'. Valid: {sorted(VALID_AGGREGATIONS)}")
+            raise ValueError(
+                f"Unknown aggregation '{aggregation}'. Valid: {sorted(VALID_AGGREGATIONS)}"
+            )
 
         grids = [data for _, data in slices]
 

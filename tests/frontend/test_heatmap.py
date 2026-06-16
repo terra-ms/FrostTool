@@ -1,4 +1,5 @@
 """Unit tests for frontend callback logic (no browser required)."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -7,9 +8,11 @@ import pytest
 # show_date_status
 # ---------------------------------------------------------------------------
 
+
 class TestShowDateStatus:
     def _call(self, start: str | None, end: str | None) -> str:
         from frontend.callbacks.graph_callbacks import show_date_status
+
         return show_date_status(start, end)
 
     def test_returns_empty_when_no_dates(self) -> None:
@@ -42,13 +45,17 @@ class TestShowDateStatus:
 # toggle_graph_visibility
 # ---------------------------------------------------------------------------
 
+
 class TestToggleGraphVisibility:
-    def _call(self, clicked_data: dict | None, close_clicks: int | None, trigger: str) -> dict:
+    def _call(
+        self, clicked_data: dict | None, close_clicks: int | None, trigger: str
+    ) -> dict:
         mock_ctx = MagicMock()
         mock_ctx.triggered = [{"prop_id": f"{trigger}.n_clicks"}]
 
         with patch("frontend.callbacks.graph_callbacks.callback_context", mock_ctx):
             from frontend.callbacks.graph_callbacks import toggle_graph_visibility
+
             return toggle_graph_visibility(clicked_data, close_clicks)
 
     def test_close_button_hides_graph(self) -> None:
@@ -65,7 +72,14 @@ class TestToggleGraphVisibility:
 
     def test_returns_all_required_style_keys(self) -> None:
         result = self._call({"lat": 1.0, "lon": 2.0}, None, "clicked-coordinate")
-        for key in ("borderTop", "background", "padding", "overflow", "transition", "position"):
+        for key in (
+            "borderTop",
+            "background",
+            "padding",
+            "overflow",
+            "transition",
+            "position",
+        ):
             assert key in result
 
 
@@ -73,19 +87,23 @@ class TestToggleGraphVisibility:
 # update_timeseries_graph — edge cases that don't need a live API
 # ---------------------------------------------------------------------------
 
+
 class TestUpdateTimeseriesGraph:
     def _call(self, clicked_coord: dict | None, raster_trigger: dict | None):  # type: ignore[no-untyped-def]
         from frontend.callbacks.graph_callbacks import update_timeseries_graph
+
         return update_timeseries_graph(clicked_coord, raster_trigger)
 
     def test_returns_empty_figure_when_no_coord(self) -> None:
         import plotly.graph_objects as go
+
         fig = self._call(None, {"date": "2020-12-31", "tempType": "mean"})
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 0
 
     def test_returns_empty_figure_when_no_trigger(self) -> None:
         import plotly.graph_objects as go
+
         fig = self._call({"lat": 0.0, "lon": 0.0}, None)
         assert isinstance(fig, go.Figure)
         assert len(fig.data) == 0
@@ -121,7 +139,10 @@ class TestUpdateTimeseriesGraph:
             ]
         }
 
-        with patch("frontend.callbacks.graph_callbacks.requests.get", return_value=mock_response):
+        with patch(
+            "frontend.callbacks.graph_callbacks.requests.get",
+            return_value=mock_response,
+        ):
             fig = self._call(
                 {"lat": 52.0, "lon": 5.0},
                 {

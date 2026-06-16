@@ -85,6 +85,7 @@ clientside_callback(
 # Map rendering
 # ---------------------------------------------------------------------------
 
+
 @callback(
     Output("map-frame", "srcDoc"),
     Input("map-frame", "id"),
@@ -187,7 +188,9 @@ def render_heatmap(
         "rasterUrl": raster_url,
         "colorscaleUrl": colorscale_url,
         "date": d_start_str,
-        "dateRange": {"start": d_start_str, "end": d_end_str} if d_start != d_end else None,
+        "dateRange": (
+            {"start": d_start_str, "end": d_end_str} if d_start != d_end else None
+        ),
         "continent": selected_continent,
         "tempType": temp_type,
     }

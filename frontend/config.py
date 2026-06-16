@@ -1,4 +1,5 @@
 """Frontend configuration and constants."""
+
 import os
 
 # API Configuration

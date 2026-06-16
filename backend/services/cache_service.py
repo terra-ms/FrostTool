@@ -10,7 +10,9 @@ logger = logging.getLogger(__name__)
 
 _CACHE_TTL_SECONDS: int = 3600
 _MEMORY_LIMIT: int = 60  # max arrays in memory (60 × ~26 MB ≈ 1.5 GB)
-_DISK_SIZE_LIMIT: int = 20 * 1024 * 1024 * 1024  # 20 GB — fits 180 days × 2 types × ~25 MB
+_DISK_SIZE_LIMIT: int = (
+    20 * 1024 * 1024 * 1024
+)  # 20 GB — fits 180 days × 2 types × ~25 MB
 
 
 class TemperatureCache:
@@ -25,6 +27,7 @@ class TemperatureCache:
     ) -> None:
         if cache_dir is None:
             from backend.core.config import CACHE_DIR as _DEFAULT_CACHE_DIR
+
             cache_dir = _DEFAULT_CACHE_DIR
         self._disk = diskcache.Cache(str(cache_dir), size_limit=disk_size_limit)
         self._ttl = ttl_seconds

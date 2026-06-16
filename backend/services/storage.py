@@ -11,6 +11,7 @@ S3 key layout mirrors the local folder names:
     precomputed/year_stacks/gdd_stack_{year}.npz
     precomputed/gdd_results/gdd_frost_{year}_{crop}.npz
 """
+
 import io
 import logging
 import os
@@ -35,6 +36,7 @@ def using_s3() -> bool:
 def _fs():
     """Lazily-imported, cached s3fs filesystem. Not touched in local mode."""
     import s3fs  # noqa: PLC0415
+
     return s3fs.S3FileSystem()
 
 
@@ -60,6 +62,7 @@ def _npz_s3_key(path: Path) -> str:
 
 # ── NetCDF helpers ─────────────────────────────────────────────────────────────
 
+
 def _s3_folder_name(data_root: Path) -> str:
     """
     Return the leaf folder name for use as an S3 key prefix.
@@ -83,9 +86,7 @@ def find_nc_file(data_root: Path, year: int, date_str: str) -> str | Path:
         prefix = f"{S3_BUCKET}/{_s3_folder_name(data_root)}/{year:04d}"
         matches = _fs().glob(f"{prefix}/*{date_str}*.nc")
         if not matches:
-            raise FileNotFoundError(
-                f"No NetCDF for {date_str} in s3://{prefix}/"
-            )
+            raise FileNotFoundError(f"No NetCDF for {date_str} in s3://{prefix}/")
         if len(matches) > 1:
             logger.warning("Multiple S3 matches for %s; using first", date_str)
         return f"s3://{matches[0]}"
@@ -112,9 +113,7 @@ def list_year_dirs(data_root: Path) -> list[int]:
         return sorted(years)
 
     return sorted(
-        int(p.name)
-        for p in data_root.glob("????")
-        if p.is_dir() and p.name.isdigit()
+        int(p.name) for p in data_root.glob("????") if p.is_dir() and p.name.isdigit()
     )
 
 
@@ -122,9 +121,7 @@ def list_nc_files(data_root: Path, year: int) -> list[str]:
     """Return .nc filenames (not full paths) in a year subfolder."""
     if S3_BUCKET:
         try:
-            items = _fs().ls(
-                f"{S3_BUCKET}/{data_root.name}/{year:04d}", detail=False
-            )
+            items = _fs().ls(f"{S3_BUCKET}/{data_root.name}/{year:04d}", detail=False)
         except FileNotFoundError:
             return []
         return [item.split("/")[-1] for item in items if item.endswith(".nc")]
@@ -165,6 +162,7 @@ def open_nc(path: str | Path) -> Generator[Path, None, None]:
 
 
 # ── NPZ helpers ────────────────────────────────────────────────────────────────
+
 
 def npz_exists(path: Path) -> bool:
     if S3_BUCKET:

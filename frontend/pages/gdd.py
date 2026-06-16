@@ -98,7 +98,9 @@ def layout() -> dbc.Row:
                         style={"marginBottom": "12px"},
                     ),
                     html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
-                    dbc.Button("Render Frost Map", id="gdd-render-btn", style=_BTN_STYLE),
+                    dbc.Button(
+                        "Render Frost Map", id="gdd-render-btn", style=_BTN_STYLE
+                    ),
                     html.Div(
                         id="gdd-status",
                         style={
@@ -111,32 +113,39 @@ def layout() -> dbc.Row:
                     ),
                     html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
                     html.H6("LEGEND", style=_LABEL_STYLE),
-                    html.Div([
-                        html.Div(
-                            style={
-                                "display": "flex",
-                                "alignItems": "center",
-                                "gap": "8px",
-                                "marginBottom": "8px",
-                            },
-                            children=[
-                                html.Div(style={
-                                    "width": "18px",
-                                    "height": "18px",
-                                    "borderRadius": "3px",
-                                    "background": color,
-                                    "flexShrink": "0",
-                                    "border": "1px solid rgba(0,0,0,0.15)",
-                                }),
-                                html.Span(label, style={
-                                    "fontFamily": "'Space Mono',monospace",
-                                    "fontSize": "10px",
-                                    "color": "#3C8361",
-                                }),
-                            ],
-                        )
-                        for color, label in _LEGEND_ITEMS
-                    ]),
+                    html.Div(
+                        [
+                            html.Div(
+                                style={
+                                    "display": "flex",
+                                    "alignItems": "center",
+                                    "gap": "8px",
+                                    "marginBottom": "8px",
+                                },
+                                children=[
+                                    html.Div(
+                                        style={
+                                            "width": "18px",
+                                            "height": "18px",
+                                            "borderRadius": "3px",
+                                            "background": color,
+                                            "flexShrink": "0",
+                                            "border": "1px solid rgba(0,0,0,0.15)",
+                                        }
+                                    ),
+                                    html.Span(
+                                        label,
+                                        style={
+                                            "fontFamily": "'Space Mono',monospace",
+                                            "fontSize": "10px",
+                                            "color": "#3C8361",
+                                        },
+                                    ),
+                                ],
+                            )
+                            for color, label in _LEGEND_ITEMS
+                        ]
+                    ),
                     html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
                     html.P(
                         "Season: 1 Jan – 31 May. Frost event = Tmin < frost threshold "

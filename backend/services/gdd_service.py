@@ -49,17 +49,19 @@ class YearStack:
     """Europe-clipped tmean/tmin daily stacks for a Jan–May season. Crop-agnostic."""
 
     tmean_stack: np.ndarray  # (T, lat, lon) Kelvin
-    tmin_stack: np.ndarray   # (T, lat, lon) Kelvin
+    tmin_stack: np.ndarray  # (T, lat, lon) Kelvin
     bounds: EuropeBounds
-    dates: list[date] = field(default_factory=list)  # length T; older cache entries omit this
+    dates: list[date] = field(
+        default_factory=list
+    )  # length T; older cache entries omit this
 
 
 @dataclass
 class GDDTimeseriesResult:
     season_dates: list[str]
-    gdd_accum: np.ndarray   # float64 (T,)
-    tmin_c: np.ndarray      # float64 (T,)
-    tavg_c: np.ndarray      # float64 (T,)
+    gdd_accum: np.ndarray  # float64 (T,)
+    tmin_c: np.ndarray  # float64 (T,)
+    tavg_c: np.ndarray  # float64 (T,)
     budbreak_date: str | None
     frost_event_dates: list[str]
 
@@ -75,6 +77,7 @@ _available_years: list[int] | None = None
 # Pre-computed file I/O
 # ---------------------------------------------------------------------------
 
+
 def _stack_path(year: int) -> Path:
     return PRECOMPUTED_DIR / "year_stacks" / f"gdd_stack_{year}.npz"
 
@@ -89,7 +92,12 @@ def _write_year_stack(path: Path, stack: YearStack) -> None:
         tmean_stack=stack.tmean_stack,
         tmin_stack=stack.tmin_stack,
         bounds=np.array(
-            [stack.bounds.min_lat, stack.bounds.max_lat, stack.bounds.min_lon, stack.bounds.max_lon],
+            [
+                stack.bounds.min_lat,
+                stack.bounds.max_lat,
+                stack.bounds.min_lon,
+                stack.bounds.max_lon,
+            ],
             dtype=np.float64,
         ),
         dates=np.array([d.isoformat() for d in stack.dates]),
@@ -115,7 +123,12 @@ def _write_gdd_result(path: Path, result: GDDResult) -> None:
         path,
         frost_count=result.frost_count,
         bounds=np.array(
-            [result.bounds.min_lat, result.bounds.max_lat, result.bounds.min_lon, result.bounds.max_lon],
+            [
+                result.bounds.min_lat,
+                result.bounds.max_lat,
+                result.bounds.min_lon,
+                result.bounds.max_lon,
+            ],
             dtype=np.float64,
         ),
     )
@@ -154,7 +167,9 @@ def load_crops() -> dict[str, CropParams]:
     return {
         section: CropParams(
             name=section,
-            display_name=parser.get(section, "display_name", fallback=section.capitalize()),
+            display_name=parser.get(
+                section, "display_name", fallback=section.capitalize()
+            ),
             base_temperature=parser.getfloat(section, "base_temperature"),
             gdd_threshold=parser.getfloat(section, "gdd_threshold"),
             frost_threshold=parser.getfloat(section, "frost_threshold"),
@@ -170,7 +185,12 @@ def _europe_row_col_slice(lat_size: int, lon_size: int) -> tuple[int, int, int, 
     lon_idx = np.linspace(-180, 180, lon_size)
     lat_rows = np.where((lat_idx >= eu_min_lat) & (lat_idx <= eu_max_lat))[0]
     lon_cols = np.where((lon_idx >= eu_min_lon) & (lon_idx <= eu_max_lon))[0]
-    return int(lat_rows[0]), int(lat_rows[-1]) + 1, int(lon_cols[0]), int(lon_cols[-1]) + 1
+    return (
+        int(lat_rows[0]),
+        int(lat_rows[-1]) + 1,
+        int(lon_cols[0]),
+        int(lon_cols[-1]) + 1,
+    )
 
 
 def _load_year_stack(year: int) -> YearStack:
@@ -222,10 +242,14 @@ def _load_year_stack(year: int) -> YearStack:
         max_lon=float(lon_idx[c1 - 1]),
     )
 
-    stack = YearStack(tmean_stack=tmean_stack, tmin_stack=tmin_stack, bounds=bounds, dates=common)
+    stack = YearStack(
+        tmean_stack=tmean_stack, tmin_stack=tmin_stack, bounds=bounds, dates=common
+    )
     _write_year_stack(path, stack)
     _year_stack_mem[year] = stack
-    logger.info("YearStack computed and saved: year=%d shape=%s", year, tmean_stack.shape)
+    logger.info(
+        "YearStack computed and saved: year=%d shape=%s", year, tmean_stack.shape
+    )
     return stack
 
 
@@ -248,9 +272,8 @@ def compute_frost_event_count_in_period(
     """
     stack = _load_year_stack(year)
 
-    nan_mask = (
-        np.any(np.isnan(stack.tmean_stack), axis=0)
-        | np.any(np.isnan(stack.tmin_stack), axis=0)
+    nan_mask = np.any(np.isnan(stack.tmean_stack), axis=0) | np.any(
+        np.isnan(stack.tmin_stack), axis=0
     )
 
     tavg_c = stack.tmean_stack - 273.15
@@ -302,9 +325,8 @@ class GDDService:
 
         stack = _load_year_stack(year)
 
-        nan_mask = (
-            np.any(np.isnan(stack.tmean_stack), axis=0)
-            | np.any(np.isnan(stack.tmin_stack), axis=0)
+        nan_mask = np.any(np.isnan(stack.tmean_stack), axis=0) | np.any(
+            np.isnan(stack.tmin_stack), axis=0
         )
 
         tavg_c = stack.tmean_stack - 273.15
@@ -342,7 +364,10 @@ def get_gdd_timeseries(
     stack = _load_year_stack(year)
     bounds = stack.bounds
 
-    if not (bounds.min_lat <= lat <= bounds.max_lat and bounds.min_lon <= lon <= bounds.max_lon):
+    if not (
+        bounds.min_lat <= lat <= bounds.max_lat
+        and bounds.min_lon <= lon <= bounds.max_lon
+    ):
         raise ValueError(
             f"Coordinates ({lat}, {lon}) are outside the Europe dataset bounds "
             f"(lat {bounds.min_lat}–{bounds.max_lat}, lon {bounds.min_lon}–{bounds.max_lon})"
@@ -387,7 +412,12 @@ def get_gdd_timeseries(
 
     logger.debug(
         "GDD timeseries: year=%d crop=%s lat=%.4f lon=%.4f budbreak=%s frost_events=%d",
-        year, crop.name, lat, lon, budbreak_date, len(frost_event_dates),
+        year,
+        crop.name,
+        lat,
+        lon,
+        budbreak_date,
+        len(frost_event_dates),
     )
     return GDDTimeseriesResult(
         season_dates=season_dates,

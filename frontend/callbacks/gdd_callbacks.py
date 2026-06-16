@@ -45,12 +45,21 @@ def _fetch_years() -> tuple[list[dict], int]:
     Input("gdd-page-store", "data"),
     prevent_initial_call=False,
 )
-def populate_gdd_dropdowns(_: bool) -> tuple[list[dict], str | None, list[dict], int | None]:
+def populate_gdd_dropdowns(
+    _: bool,
+) -> tuple[list[dict], str | None, list[dict], int | None]:
     global _cached_crop_options, _cached_year_options, _cached_default_year
 
     if _cached_crop_options is not None and _cached_year_options is not None:
-        default_crop = _cached_crop_options[0]["value"] if _cached_crop_options else None
-        return _cached_crop_options, default_crop, _cached_year_options, _cached_default_year
+        default_crop = (
+            _cached_crop_options[0]["value"] if _cached_crop_options else None
+        )
+        return (
+            _cached_crop_options,
+            default_crop,
+            _cached_year_options,
+            _cached_default_year,
+        )
 
     # Both requests run in parallel — worst-case block is _TIMEOUT, not 2 × _TIMEOUT.
     crop_options: list[dict] = []
@@ -74,7 +83,9 @@ def populate_gdd_dropdowns(_: bool) -> tuple[list[dict], str | None, list[dict],
             year_options, default_year = years_future.result()
         except Exception as exc:
             logger.warning("Could not fetch available years from backend: %s", exc)
-            year_options = [{"label": str(y), "value": y} for y in range(2007, 1978, -1)]
+            year_options = [
+                {"label": str(y), "value": y} for y in range(2007, 1978, -1)
+            ]
             default_year = 2007
 
     # Only cache if both fetches succeeded (i.e., we got real data, not fallbacks).
@@ -135,7 +146,9 @@ def render_gdd_map(
             raster_url += f"&date_from={date_from}"
         if date_to:
             raster_url += f"&date_to={date_to}"
-        fmt_from = date.fromisoformat(date_from).strftime("%d %b") if date_from else "1 Jan"
+        fmt_from = (
+            date.fromisoformat(date_from).strftime("%d %b") if date_from else "1 Jan"
+        )
         fmt_to = date.fromisoformat(date_to).strftime("%d %b") if date_to else "31 May"
         period_label = f" · {fmt_from} – {fmt_to}"
         active_period = {"date_from": date_from, "date_to": date_to}
@@ -213,6 +226,7 @@ def sync_gdd_coordinate(intermediate: dict | None) -> dict | None:
 # Graph panel visibility
 # ---------------------------------------------------------------------------
 
+
 @callback(
     Output("gdd-graph-container", "style"),
     Input("gdd-clicked-coordinate", "data"),
@@ -227,8 +241,14 @@ def toggle_gdd_graph(clicked: dict | None, close_clicks: int | None) -> dict:
         "transition": "height 0.3s ease",
         "position": "relative",
     }
-    trigger = callback_context.triggered[0]["prop_id"].split(".")[0] if callback_context.triggered else None
-    base["height"] = "0%" if (trigger == "gdd-close-graph-btn" or not clicked) else "30%"
+    trigger = (
+        callback_context.triggered[0]["prop_id"].split(".")[0]
+        if callback_context.triggered
+        else None
+    )
+    base["height"] = (
+        "0%" if (trigger == "gdd-close-graph-btn" or not clicked) else "30%"
+    )
     return base
 
 
@@ -247,7 +267,9 @@ _EMPTY_MARGIN = dict(l=50, r=60, t=35, b=40)
 
 
 def _empty_figure() -> go.Figure:
-    return go.Figure().update_layout(**_BASE_LAYOUT, margin=_EMPTY_MARGIN, showlegend=False)
+    return go.Figure().update_layout(
+        **_BASE_LAYOUT, margin=_EMPTY_MARGIN, showlegend=False
+    )
 
 
 @callback(
@@ -256,7 +278,9 @@ def _empty_figure() -> go.Figure:
     State("gdd-active-period", "data"),
     prevent_initial_call=True,
 )
-def update_gdd_timeseries(clicked: dict | None, active_period: dict | None) -> go.Figure:
+def update_gdd_timeseries(
+    clicked: dict | None, active_period: dict | None
+) -> go.Figure:
     if not clicked:
         return _empty_figure()
 
@@ -269,7 +293,9 @@ def update_gdd_timeseries(clicked: dict | None, active_period: dict | None) -> g
         return _empty_figure()
 
     try:
-        url = f"{API_BASE_URL}/gdd/timeseries?lat={lat}&lon={lon}&year={year}&crop={crop}"
+        url = (
+            f"{API_BASE_URL}/gdd/timeseries?lat={lat}&lon={lon}&year={year}&crop={crop}"
+        )
         resp = requests.get(url, timeout=30)
         resp.raise_for_status()
         ts = resp.json()
@@ -319,29 +345,37 @@ def update_gdd_timeseries(clicked: dict | None, active_period: dict | None) -> g
     fig = go.Figure()
 
     # --- Primary trace: daily Tmin ---
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=tmin_vals,
-        name="Daily Tmin",
-        line=dict(color="#3b82f6", width=1.5),
-        hovertemplate="%{y:.1f}°C<extra></extra>",
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=tmin_vals,
+            name="Daily Tmin",
+            line=dict(color="#3b82f6", width=1.5),
+            hovertemplate="%{y:.1f}°C<extra></extra>",
+        )
+    )
 
     # Frost threshold reference line (primary axis)
     fig.add_shape(
         type="line",
-        x0=dates[0], x1=dates[-1],
-        y0=frost_threshold, y1=frost_threshold,
+        x0=dates[0],
+        x1=dates[-1],
+        y0=frost_threshold,
+        y1=frost_threshold,
         line=dict(dash="dash", color="#f97316", width=1.5),
-        xref="x", yref="y",
+        xref="x",
+        yref="y",
     )
     fig.add_annotation(
-        x=dates[-1], y=frost_threshold,
+        x=dates[-1],
+        y=frost_threshold,
         text=f"Frost ({frost_threshold}°C)",
-        xanchor="right", yanchor="top",
+        xanchor="right",
+        yanchor="top",
         font=dict(color="#f97316", size=9),
         showarrow=False,
-        xref="x", yref="y",
+        xref="x",
+        yref="y",
     )
 
     # Frost event markers
@@ -351,63 +385,79 @@ def update_gdd_timeseries(clicked: dict | None, active_period: dict | None) -> g
         if valid_frost:
             idx_map = {d: i for i, d in enumerate(dates)}
             frost_tmin = [tmin_vals[idx_map[d]] for d in valid_frost]
-            fig.add_trace(go.Scatter(
-                x=valid_frost,
-                y=frost_tmin,
-                mode="markers",
-                name="Frost event",
-                marker=dict(
-                    color="#f97316",
-                    size=9,
-                    symbol="x-thin",
-                    line=dict(width=2.5, color="#f97316"),
-                ),
-                hovertemplate="<b>Frost: %{x}</b><br>Tmin: %{y:.1f}°C<extra></extra>",
-            ))
+            fig.add_trace(
+                go.Scatter(
+                    x=valid_frost,
+                    y=frost_tmin,
+                    mode="markers",
+                    name="Frost event",
+                    marker=dict(
+                        color="#f97316",
+                        size=9,
+                        symbol="x-thin",
+                        line=dict(width=2.5, color="#f97316"),
+                    ),
+                    hovertemplate="<b>Frost: %{x}</b><br>Tmin: %{y:.1f}°C<extra></extra>",
+                )
+            )
 
     # --- Secondary trace: cumulative GDD ---
-    fig.add_trace(go.Scatter(
-        x=dates,
-        y=gdd_vals,
-        name="Cumulative GDD",
-        line=dict(color="#3C8361", width=2.5),
-        hovertemplate="%{y:.1f} GDD°C<extra></extra>",
-        yaxis="y2",
-    ))
+    fig.add_trace(
+        go.Scatter(
+            x=dates,
+            y=gdd_vals,
+            name="Cumulative GDD",
+            line=dict(color="#3C8361", width=2.5),
+            hovertemplate="%{y:.1f} GDD°C<extra></extra>",
+            yaxis="y2",
+        )
+    )
 
     # GDD threshold reference line (secondary axis)
     fig.add_shape(
         type="line",
-        x0=dates[0], x1=dates[-1],
-        y0=gdd_threshold, y1=gdd_threshold,
+        x0=dates[0],
+        x1=dates[-1],
+        y0=gdd_threshold,
+        y1=gdd_threshold,
         line=dict(dash="dash", color="#2d8a4e", width=1.5),
-        xref="x", yref="y2",
+        xref="x",
+        yref="y2",
     )
     fig.add_annotation(
-        x=dates[-1], y=gdd_threshold,
+        x=dates[-1],
+        y=gdd_threshold,
         text=f"Budbreak ({gdd_threshold:.0f}°C·d)",
-        xanchor="right", yanchor="bottom",
+        xanchor="right",
+        yanchor="bottom",
         font=dict(color="#2d8a4e", size=9),
         showarrow=False,
-        xref="x", yref="y2",
+        xref="x",
+        yref="y2",
     )
 
     # Budbreak vertical marker
     if budbreak_date:
         fig.add_shape(
             type="line",
-            x0=budbreak_date, x1=budbreak_date,
-            y0=0, y1=1,
+            x0=budbreak_date,
+            x1=budbreak_date,
+            y0=0,
+            y1=1,
             line=dict(dash="dot", color="#2d8a4e", width=1.5),
-            xref="x", yref="paper",
+            xref="x",
+            yref="paper",
         )
         fig.add_annotation(
-            x=budbreak_date, y=0.97,
+            x=budbreak_date,
+            y=0.97,
             text="Budbreak",
-            xanchor="center", yanchor="top",
+            xanchor="center",
+            yanchor="top",
             font=dict(color="#2d8a4e", size=9),
             showarrow=False,
-            xref="x", yref="paper",
+            xref="x",
+            yref="paper",
         )
 
     fig.update_layout(
@@ -436,8 +486,10 @@ def update_gdd_timeseries(clicked: dict | None, active_period: dict | None) -> g
         ),
         legend=dict(
             orientation="h",
-            yanchor="bottom", y=1.01,
-            xanchor="right", x=1,
+            yanchor="bottom",
+            y=1.01,
+            xanchor="right",
+            x=1,
             font=dict(size=9),
             bgcolor="rgba(0,0,0,0)",
         ),

@@ -175,28 +175,35 @@ class NetCDFService:
         path: Path = NetCDFService.resolve_nc_path(date_obj, temp_type)
 
         try:
-            with _HDF5_LOCK, storage.open_nc(path) as nc_src, xr.open_dataset(nc_src, engine="netcdf4") as ds:
-                        if variable not in ds.data_vars:
-                            logger.error(
-                                "Variable not found",
-                                extra={"variable": variable, "path": str(path)},
-                            )
-                            raise VariableNotFoundError(variable, str(path))
+            with (
+                _HDF5_LOCK,
+                storage.open_nc(path) as nc_src,
+                xr.open_dataset(nc_src, engine="netcdf4") as ds,
+            ):
+                if variable not in ds.data_vars:
+                    logger.error(
+                        "Variable not found",
+                        extra={"variable": variable, "path": str(path)},
+                    )
+                    raise VariableNotFoundError(variable, str(path))
 
-                        data_array = ds[variable]
+                data_array = ds[variable]
 
-                        if time_index >= data_array.sizes.get("time", 1):
-                            logger.error(
-                                "Time index out of range",
-                                extra={"index": time_index, "max": data_array.sizes.get("time", 1) - 1},
-                            )
-                            raise InvalidTimeIndexError(
-                                time_index, data_array.sizes.get("time", 1) - 1
-                            )
+                if time_index >= data_array.sizes.get("time", 1):
+                    logger.error(
+                        "Time index out of range",
+                        extra={
+                            "index": time_index,
+                            "max": data_array.sizes.get("time", 1) - 1,
+                        },
+                    )
+                    raise InvalidTimeIndexError(
+                        time_index, data_array.sizes.get("time", 1) - 1
+                    )
 
-                        slice_data: np.ndarray = data_array.isel(time=time_index).values.astype(
-                            np.float32
-                        )
+                slice_data: np.ndarray = data_array.isel(time=time_index).values.astype(
+                    np.float32
+                )
 
         except FileNotFoundError as exc:
             logger.error("NetCDF file not found", extra={"path": str(path)})
@@ -211,7 +218,9 @@ class NetCDFService:
         time_index: int = 0,
         temp_type: str = "mean",
     ) -> ColorscaleInfo:
-        data: np.ndarray = NetCDFService.get_temperature_slice(date_obj, time_index, temp_type)
+        data: np.ndarray = NetCDFService.get_temperature_slice(
+            date_obj, time_index, temp_type
+        )
         valid: np.ndarray = data[~np.isnan(data)]
         return ColorscaleInfo(
             min_value=float(np.min(valid)),
@@ -228,7 +237,9 @@ class NetCDFService:
         continent: str | None = None,
         zoom_level: int | None = None,
     ) -> bytes:
-        data: np.ndarray = NetCDFService.get_temperature_slice(date_obj, time_index, temp_type)
+        data: np.ndarray = NetCDFService.get_temperature_slice(
+            date_obj, time_index, temp_type
+        )
         return _build_raster_bytes(data, continent, zoom_level)
 
     @staticmethod
@@ -239,7 +250,9 @@ class NetCDFService:
         time_index: int = 0,
         temp_type: str = "mean",
     ) -> float:
-        data: np.ndarray = NetCDFService.get_temperature_slice(date_obj, time_index, temp_type)
+        data: np.ndarray = NetCDFService.get_temperature_slice(
+            date_obj, time_index, temp_type
+        )
 
         lat_idx: int = int((90 - lat) * (data.shape[0] - 1) / 180)
         lon_idx: int = int((lon + 180) * (data.shape[1] - 1) / 360)
@@ -295,7 +308,9 @@ class NetCDFService:
                 for part in filename.split("_"):
                     if len(part) == 8 and part.isdigit():
                         try:
-                            date_obj = date(int(part[:4]), int(part[4:6]), int(part[6:8]))
+                            date_obj = date(
+                                int(part[:4]), int(part[4:6]), int(part[6:8])
+                            )
                             dates.append(date_obj.isoformat())
                             break
                         except (ValueError, IndexError):
@@ -360,7 +375,9 @@ class NetCDFService:
         temp_type: str,
     ) -> np.ndarray:
         """Load, aggregate, and cache the result so zoom changes skip re-aggregation."""
-        cache_key = f"agg_{start_date}_{end_date}_{aggregation}_{time_index}_{temp_type}"
+        cache_key = (
+            f"agg_{start_date}_{end_date}_{aggregation}_{time_index}_{temp_type}"
+        )
         cached = temperature_cache.get(cache_key)
         if cached is not None:
             logger.debug(f"Aggregation cache hit: {cache_key}")

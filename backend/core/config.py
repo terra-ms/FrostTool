@@ -1,8 +1,12 @@
 import os
 from pathlib import Path
 
-_DATA_ROOT_MEAN: Path = Path(os.environ.get("DATA_ROOT_MEAN", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2"))
-_DATA_ROOT_MIN: Path = Path(os.environ.get("DATA_ROOT_MIN", r"C:\Olivier\Terra local\data\AgERA5\tmin_v2"))
+_DATA_ROOT_MEAN: Path = Path(
+    os.environ.get("DATA_ROOT_MEAN", r"C:\Olivier\Terra local\data\AgERA5\tmean_v2")
+)
+_DATA_ROOT_MIN: Path = Path(
+    os.environ.get("DATA_ROOT_MIN", r"C:\Olivier\Terra local\data\AgERA5\tmin_v2")
+)
 
 # Temperature data sources configuration
 TEMPERATURE_SOURCES: dict[str, dict[str, Path | str]] = {
@@ -43,7 +47,9 @@ CACHE_DIR: Path = Path(
 S3_BUCKET: str | None = os.environ.get("S3_BUCKET")
 
 CROPS_CONFIG_PATH: Path = Path(
-    os.environ.get("CROPS_CONFIG", str(Path(__file__).parent.parent.parent / "crops.txt"))
+    os.environ.get(
+        "CROPS_CONFIG", str(Path(__file__).parent.parent.parent / "crops.txt")
+    )
 )
 
 # Earliest year included in the background GDD warm-up at startup.
