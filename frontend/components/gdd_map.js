@@ -15,6 +15,30 @@
   let currentRasterUrl = null;
   let currentYear = null;
   let currentCrop = null;
+  let borderLayer = null;
+  let admin1Layer = null;
+  const ADMIN1_ZOOM = 5;
+
+  const STATIC = API.replace(/\/api\/v1\/?$/, '') + '/static';
+
+  fetch(STATIC + '/ne_admin0.geojson')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      borderLayer = L.geoJSON(data, {
+        style: { color: 'rgba(255,255,255,0.45)', weight: 0.7, fill: false },
+      }).addTo(map);
+    })
+    .catch(e => console.warn('Could not load country borders:', e));
+
+  fetch(STATIC + '/ne_admin1.geojson')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      admin1Layer = L.geoJSON(data, {
+        style: { color: 'rgba(255,255,255,0.28)', weight: 0.5, fill: false },
+      });
+      if (map.getZoom() >= ADMIN1_ZOOM) admin1Layer.addTo(map);
+    })
+    .catch(e => console.warn('Could not load province borders:', e));
 
   // Frost-event count colour scale (solid colours — transparency is handled by layer opacity):
   //  < 0  → light grey  (never reached budbreak — too cold for crop to develop)
@@ -58,6 +82,8 @@
           updateWhenZooming: true,
         });
         currentLayer.addTo(map);
+        if (borderLayer) borderLayer.bringToFront();
+        if (admin1Layer && map.hasLayer(admin1Layer)) admin1Layer.bringToFront();
 
         if (!hasRendered) {
           map.fitBounds(currentLayer.getBounds());
@@ -81,6 +107,19 @@
       });
   };
 
+
+  map.on('zoomend', function () {
+    if (admin1Layer) {
+      const zoomed = map.getZoom() >= ADMIN1_ZOOM;
+      if (zoomed && !map.hasLayer(admin1Layer)) {
+        admin1Layer.addTo(map);
+        if (borderLayer) borderLayer.bringToFront();
+        admin1Layer.bringToFront();
+      } else if (!zoomed && map.hasLayer(admin1Layer)) {
+        map.removeLayer(admin1Layer);
+      }
+    }
+  });
 
   // Click: send coordinate + current year/crop to parent Dash frame.
   map.on('click', function (e) {

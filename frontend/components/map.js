@@ -20,6 +20,30 @@
   let lastFetchedZoomLevel = null;
   let rasterUrls = {};
   let currentContinent = null;
+  let borderLayer = null;
+  let admin1Layer = null;
+  const ADMIN1_ZOOM = 5;
+
+  const STATIC = API.replace(/\/api\/v1\/?$/, '') + '/static';
+
+  fetch(STATIC + '/ne_admin0.geojson')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      borderLayer = L.geoJSON(data, {
+        style: { color: 'rgba(255,255,255,0.45)', weight: 0.7, fill: false },
+      }).addTo(map);
+    })
+    .catch(e => console.warn('Could not load country borders:', e));
+
+  fetch(STATIC + '/ne_admin1.geojson')
+    .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+    .then(data => {
+      admin1Layer = L.geoJSON(data, {
+        style: { color: 'rgba(255,255,255,0.28)', weight: 0.5, fill: false },
+      });
+      if (map.getZoom() >= ADMIN1_ZOOM) admin1Layer.addTo(map);
+    })
+    .catch(e => console.warn('Could not load province borders:', e));
 
   // Absolute temperature colour scale: -40°C (blue) → 50°C (dark red)
   const absoluteColorScale = chroma.scale([
@@ -113,6 +137,8 @@
         });
 
         currentLayer.addTo(map);
+        if (borderLayer) borderLayer.bringToFront();
+        if (admin1Layer && map.hasLayer(admin1Layer)) admin1Layer.bringToFront();
 
         const isInitialLoad = lastFetchedZoomLevel === null;
         if (isInitialLoad) {
@@ -197,6 +223,17 @@
   // ---------------------------------------------------------------------------
 
   map.on('zoomend', function () {
+    if (admin1Layer) {
+      const zoomed = map.getZoom() >= ADMIN1_ZOOM;
+      if (zoomed && !map.hasLayer(admin1Layer)) {
+        admin1Layer.addTo(map);
+        if (borderLayer) borderLayer.bringToFront();
+        admin1Layer.bringToFront();
+      } else if (!zoomed && map.hasLayer(admin1Layer)) {
+        map.removeLayer(admin1Layer);
+      }
+    }
+
     if (!currentDate || !rasterUrls.rasterUrl) return;
 
     const newZoom = map.getZoom();

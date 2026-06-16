@@ -7,6 +7,7 @@ from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 # Handle imports for both direct execution and module invocation
 try:
@@ -103,6 +104,10 @@ def create_app() -> FastAPI:
     app.include_router(climate_router)
     app.include_router(gdd_router)
     app.include_router(debug_router)
+
+    static_dir = Path(__file__).parent / "static"
+    static_dir.mkdir(exist_ok=True)
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
     return app
 
