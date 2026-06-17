@@ -139,7 +139,10 @@ def create_shared_header() -> html.Div:
             "boxSizing": "border-box",
         },
         children=[
-            html.Img(src="/assets/logoWhite.png", style={"height": "42px", "width": "auto"}),
+            html.Img(
+                src="/assets/logoWhite.png",
+                style={"height": "42px", "width": "auto"},
+            ),
             html.Div(
                 style={"flex": "1"},
                 children=[
