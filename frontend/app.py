@@ -13,10 +13,10 @@ app = dash.Dash(
     pages_folder=str(Path(__file__).parent / "pages"),
     external_stylesheets=[
         dbc.themes.CYBORG,
-        "https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap",
+        "https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800&display=swap",
     ],
     suppress_callback_exceptions=True,
-    title="AgERA5 Climate Tool",
+    title="TERRA FrostExplorer",
 )
 
 app.layout = dbc.Container(

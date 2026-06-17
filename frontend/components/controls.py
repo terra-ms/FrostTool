@@ -15,7 +15,7 @@ def create_map_frame() -> html.Iframe:
 
 def create_controls() -> dbc.Col:
     label_style: dict = {
-        "fontFamily": "'Space Mono',monospace",
+        "fontFamily": "'Montserrat',sans-serif",
         "fontSize": "10px",
         "letterSpacing": "2px",
         "color": "#3C8361",
@@ -68,15 +68,15 @@ def create_controls() -> dbc.Col:
             html.H6("DATE RANGE", style=label_style),
             dcc.DatePickerRange(
                 id="date-range",
-                start_date="2020-12-30",
-                end_date="2020-12-31",
+                start_date="2026-01-01",
+                end_date="2026-01-31",
                 display_format="YYYY-MM-DD",
                 style={"width": "100%"},
             ),
             html.Div(
                 id="date-status",
                 style={
-                    "fontFamily": "'Space Mono',monospace",
+                    "fontFamily": "'Montserrat',sans-serif",
                     "fontSize": "11px",
                     "marginTop": "8px",
                     "color": "#3C8361",
@@ -88,7 +88,7 @@ def create_controls() -> dbc.Col:
                 id="render-btn",
                 style={
                     "width": "100%",
-                    "fontFamily": "'Space Mono',monospace",
+                    "fontFamily": "'Montserrat',sans-serif",
                     "fontWeight": "700",
                     "letterSpacing": "1px",
                     "background": "linear-gradient(135deg,#3C8361,#1B6758)",
@@ -103,7 +103,7 @@ def create_controls() -> dbc.Col:
             html.Div(
                 id="stats-box",
                 style={
-                    "fontFamily": "'Space Mono',monospace",
+                    "fontFamily": "'Montserrat',sans-serif",
                     "fontSize": "11px",
                     "color": "#3C8361",
                     "lineHeight": "1.9",
@@ -114,7 +114,7 @@ def create_controls() -> dbc.Col:
 
 
 _NAV_LINK_STYLE: dict = {
-    "fontFamily": "'Space Mono',monospace",
+    "fontFamily": "'Montserrat',sans-serif",
     "fontSize": "11px",
     "letterSpacing": "1px",
     "color": "#D6CDA4",
@@ -139,14 +139,14 @@ def create_shared_header() -> html.Div:
             "boxSizing": "border-box",
         },
         children=[
-            html.Span("🌡", style={"fontSize": "30px"}),
+            html.Img(src="/assets/logoWhite.png", style={"height": "42px", "width": "auto"}),
             html.Div(
                 style={"flex": "1"},
                 children=[
                     html.H1(
-                        "AgERA5 Climate Tool",
+                        "TERRA FrostExplorer",
                         style={
-                            "fontFamily": "'Syne',sans-serif",
+                            "fontFamily": "'Montserrat',sans-serif",
                             "fontWeight": "800",
                             "fontSize": "22px",
                             "color": "#EEF2E6",
@@ -156,7 +156,7 @@ def create_shared_header() -> html.Div:
                     html.P(
                         "Global daily 2 m air temperature · ERA5-based · georaster-layer-for-leaflet",
                         style={
-                            "fontFamily": "'Space Mono',monospace",
+                            "fontFamily": "'Montserrat',sans-serif",
                             "fontSize": "10px",
                             "color": "#D6CDA4",
                             "margin": "3px 0 0",

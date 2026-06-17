@@ -11,7 +11,7 @@ _EMPTY_LAYOUT: dict = dict(
     template="plotly_dark",
     paper_bgcolor="#0D4F44",
     plot_bgcolor="#0D4F44",
-    font=dict(color="#EEF2E6", family="'Space Mono', monospace", size=11),
+    font=dict(color="#EEF2E6", family="'Montserrat', sans-serif", size=11),
     showlegend=False,
 )
 

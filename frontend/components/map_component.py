@@ -13,6 +13,8 @@ _HTML_HEAD = """\
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap"/>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
   *{margin:0;padding:0;box-sizing:border-box;}
@@ -22,7 +24,7 @@ _HTML_HEAD = """\
     position:absolute;bottom:28px;right:10px;z-index:9999;
     background:rgba(27,103,88,0.88);border:1px solid #3C8361;
     border-radius:10px;padding:13px 17px;min-width:170px;
-    font-family:'Space Mono',monospace;color:#EEF2E6;font-size:11px;
+    font-family:'Montserrat',sans-serif;color:#EEF2E6;font-size:11px;
     backdrop-filter:blur(6px);
   }
   #legend .leg-title{font-weight:700;font-size:12px;color:#D6CDA4;margin-bottom:8px;}
@@ -39,7 +41,7 @@ _HTML_HEAD = """\
     z-index:9999;pointer-events:none;
     background:rgba(27,103,88,0.90);border:1px solid #3C8361;
     border-radius:8px;padding:9px 14px;
-    font-family:'Space Mono',monospace;font-size:11px;color:#EEF2E6;
+    font-family:'Montserrat',sans-serif;font-size:11px;color:#EEF2E6;
     white-space:nowrap;backdrop-filter:blur(6px);display:none;
   }
   #tooltip span.hi{color:#D6CDA4;font-weight:700;}
@@ -48,7 +50,7 @@ _HTML_HEAD = """\
   #loading{
     position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     z-index:9998;display:none;
-    font-family:'Space Mono',monospace;font-size:13px;color:#D6CDA4;text-align:center;
+    font-family:'Montserrat',sans-serif;font-size:13px;color:#D6CDA4;text-align:center;
   }
   .spinner{
     width:50px;height:50px;

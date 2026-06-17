@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-06-15 (session 10)
+Last updated: 2026-06-16 (session 11)
 
 ---
 
@@ -394,7 +394,10 @@ The app runs on AWS Fargate (region `us-east-1`) behind an Application Load Bala
 | Task role | `frosttool-task-role` (S3 read + precomputed write) |
 | Execution role | `ecsTaskExecutionRole` |
 
-CI/CD: GitHub Actions workflow (`.github/workflows/deploy.yml`) builds both images on push to `main`, pushes to ECR tagged with commit SHA + `latest`, then force-deploys both ECS services.
+CI/CD: GitHub Actions workflow (`.github/workflows/deploy.yml`) — three-job pipeline:
+1. **lint-and-test** — ruff, black, mypy, pytest (37 tests). Installs `backend/requirements-dev.txt` + `frontend/requirements.txt`.
+2. **build-and-push** — builds both Docker images; pushes to ECR (push to `main` only). Requires lint-and-test to pass.
+3. **deploy** — force-redeploys both ECS services; waits for stabilisation. Runs on push to `main` only.
 
 ---
 

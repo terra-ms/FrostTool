@@ -84,9 +84,9 @@ def populate_gdd_dropdowns(
         except Exception as exc:
             logger.warning("Could not fetch available years from backend: %s", exc)
             year_options = [
-                {"label": str(y), "value": y} for y in range(2007, 1978, -1)
+                {"label": str(y), "value": y} for y in range(2026, 1978, -1)
             ]
-            default_year = 2007
+            default_year = 2026
 
     # Only cache if both fetches succeeded (i.e., we got real data, not fallbacks).
     if crops_future.exception() is None and years_future.exception() is None:
@@ -260,7 +260,7 @@ _BASE_LAYOUT: dict = dict(
     template="plotly_dark",
     paper_bgcolor="#0D4F44",
     plot_bgcolor="#0D4F44",
-    font=dict(color="#EEF2E6", family="'Space Mono', monospace", size=11),
+    font=dict(color="#EEF2E6", family="'Montserrat', sans-serif", size=11),
 )
 
 _EMPTY_MARGIN = dict(l=50, r=60, t=35, b=40)

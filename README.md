@@ -37,6 +37,29 @@ API docs: http://localhost:8000/docs
 | Caching (GDD) | In-memory dict + precomputed `.npz` files (no expiry) |
 | Testing | pytest, httpx (async) |
 | Linting | ruff, black, mypy --strict |
+| CI/CD | GitHub Actions → ECR → ECS Fargate |
+| Storage (production) | AWS S3 (data) + ECR (images) |
+
+---
+
+## CI / CD
+
+The GitHub Actions workflow (`.github/workflows/deploy.yml`) runs on every push to `main`:
+
+1. **lint-and-test** — ruff, black, mypy, pytest (37 tests). Build and deploy are blocked until this passes.
+2. **build-and-push** — builds both Docker images and pushes to Amazon ECR tagged with the commit SHA and `latest`.
+3. **deploy** — force-redeploys both ECS Fargate services and waits for stabilisation.
+
+PRs trigger jobs 1 and 2 (images are built but not pushed or deployed).
+
+### Running checks locally
+
+```bash
+ruff check .
+black --check .
+mypy backend/
+pytest tests/ -q
+```
 
 ---
 
@@ -50,6 +73,8 @@ AgERA5 daily rasters stored locally at `C:\Olivier\Terra local\data\AgERA5\`:
 | `Temperature_Air_2m_Min_24h` | `tmin_v2\{YYYY}\*.nc` | 1979–2007 (test dataset) |
 
 GDD precomputed artifacts live alongside the data in `precomputed\` — generated on first run, loaded from disk on all subsequent startups.
+
+In production the data lives in S3. Set the `S3_BUCKET` env var to switch the backend from local paths to S3 — no other code changes needed (see Configuration).
 
 ---
 
@@ -70,9 +95,13 @@ FrostTool/
 │   │   ├── gdd_service.py       GDD computation, .npz persistence, timeseries
 │   │   ├── cache_service.py     diskcache + LRU wrapper (climate data only)
 │   │   └── aggregation_service.py  min/max/mean aggregation
+│   ├── static/
+│   │   ├── ne_admin0.geojson    Natural Earth 110m country borders
+│   │   └── ne_admin1.geojson    Natural Earth 50m province/state borders
 │   └── api/routes/
 │       ├── climate.py           /api/v1/* endpoints
-│       └── gdd.py               /api/v1/gdd/* endpoints
+│       ├── gdd.py               /api/v1/gdd/* endpoints
+│       └── debug.py             /api/v1/debug/s3 — S3 connectivity diagnostic
 ├── frontend/
 │   ├── app.py                   Dash app factory (use_pages=True)
 │   ├── config.py                API_BASE_URL
@@ -106,7 +135,9 @@ All paths and variable names are in `backend/core/config.py`. Override via envir
 | `DATA_ROOT_MIN` | `…\AgERA5\tmin_v2` | tmin NetCDF root |
 | `PRECOMPUTED_DIR` | `…\AgERA5\precomputed` | GDD `.npz` artifact storage |
 | `CACHE_DIR` | `.cache` | diskcache directory |
-| `GDD_WARMUP_MIN_YEAR` | `2005` | Earliest year pre-warmed at startup |
+| `GDD_WARMUP_MIN_YEAR` | `2015` | Earliest year pre-warmed at startup |
+| `S3_BUCKET` | *(unset)* | Set to bucket name to switch to S3 mode (production) |
+| `ALLOWED_ORIGINS` | `http://localhost:8050,…` | CORS origins allowed by the backend |
 
 ---
 
@@ -124,6 +155,18 @@ frost_threshold = -2
 
 ---
 
+## Admin border overlay
+
+Both maps display Natural Earth vector borders as Leaflet GeoJSON layers:
+- **Country borders** (110m) — always visible
+- **Province/state borders** (50m) — appear automatically at zoom ≥ 5
+
+The GeoJSON files are served as static files from `backend/static/` via FastAPI's `StaticFiles` mount at `/static`.
+
+---
+
 ## First-run note
 
-On first startup with no precomputed files, the backend warm-up reads ~302 NetCDF files per year and saves compressed `.npz` artifacts. Expect ~60 s per year (for 2005–2007: ~8–10 min total). All subsequent startups load from disk in seconds. The app serves requests immediately; only the first render of an uncomputed year is slow.
+On first startup with no precomputed files, the backend warm-up reads ~302 NetCDF files per year and saves compressed `.npz` artifacts. Expect ~60 s per year. All subsequent startups load from disk in seconds. The app serves requests immediately; only the first render of an uncomputed year is slow.
+
+In production (Fargate + S3), precompute the `.npz` files locally and upload them to S3 before deploying — the container then starts in seconds without ever touching the raw NetCDF files.

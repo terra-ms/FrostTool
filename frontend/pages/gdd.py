@@ -7,7 +7,7 @@ from frontend.components.gdd_map_component import create_gdd_map_frame
 dash.register_page(__name__, path="/gdd", name="Frost Risk")
 
 _LABEL_STYLE: dict = {
-    "fontFamily": "'Space Mono',monospace",
+    "fontFamily": "'Montserrat',sans-serif",
     "fontSize": "10px",
     "letterSpacing": "2px",
     "color": "#3C8361",
@@ -24,7 +24,7 @@ _SIDEBAR_STYLE: dict = {
 
 _BTN_STYLE: dict = {
     "width": "100%",
-    "fontFamily": "'Space Mono',monospace",
+    "fontFamily": "'Montserrat',sans-serif",
     "fontWeight": "700",
     "letterSpacing": "1px",
     "background": "linear-gradient(135deg,#3C8361,#1B6758)",
@@ -81,7 +81,7 @@ def layout() -> dbc.Row:
                         "Filter frost events by date range within the season. "
                         "Leave blank to show the full Jan – May season.",
                         style={
-                            "fontFamily": "'Space Mono',monospace",
+                            "fontFamily": "'Montserrat',sans-serif",
                             "fontSize": "9px",
                             "color": "#3C8361",
                             "lineHeight": "1.6",
@@ -104,7 +104,7 @@ def layout() -> dbc.Row:
                     html.Div(
                         id="gdd-status",
                         style={
-                            "fontFamily": "'Space Mono',monospace",
+                            "fontFamily": "'Montserrat',sans-serif",
                             "fontSize": "11px",
                             "color": "#3C8361",
                             "marginTop": "12px",
@@ -136,7 +136,7 @@ def layout() -> dbc.Row:
                                     html.Span(
                                         label,
                                         style={
-                                            "fontFamily": "'Space Mono',monospace",
+                                            "fontFamily": "'Montserrat',sans-serif",
                                             "fontSize": "10px",
                                             "color": "#3C8361",
                                         },
@@ -152,7 +152,7 @@ def layout() -> dbc.Row:
                         "after accumulated GDD exceeds budbreak threshold. "
                         "Crop parameters are editable in crops.txt.",
                         style={
-                            "fontFamily": "'Space Mono',monospace",
+                            "fontFamily": "'Montserrat',sans-serif",
                             "fontSize": "9px",
                             "color": "#3C8361",
                             "lineHeight": "1.7",
