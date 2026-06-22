@@ -60,7 +60,7 @@ CONTINENTS: dict[str, tuple[float, float, float, float]] = {
     "Africa": (-35, 37, -18, 52),
     "North America": (15, 83, -170, -50),
     "South America": (-56, 13, -82, -35),
-    "Europe": (30, 76, -15, 45),
+    "Europe": (30, 76, -15, 54),
     "Asia": (-10, 77, 26, 180),
     "Oceania": (-47, -10, 113, 180),
 }

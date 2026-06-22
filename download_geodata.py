@@ -6,7 +6,7 @@ Run once from the project root:
 Requires geopandas (pip install geopandas).
 
 Files saved:
-    backend/static/ne_admin0.geojson  — country borders  (110m, ~1 MB)
+    backend/static/ne_admin0.geojson  — country borders  (10m,  ~20 MB)
     backend/static/ne_admin1.geojson  — province borders (50m,  ~8 MB)
 """
 
@@ -18,7 +18,7 @@ STATIC.mkdir(parents=True, exist_ok=True)
 
 SOURCES = {
     "ne_admin0.geojson": (
-        "https://naciscdn.org/naturalearth/110m/cultural/ne_110m_admin_0_countries.zip"
+        "https://naciscdn.org/naturalearth/10m/cultural/ne_10m_admin_0_countries.zip"
     ),
     "ne_admin1.geojson": (
         "https://naciscdn.org/naturalearth/50m/cultural/ne_50m_admin_1_states_provinces.zip"
