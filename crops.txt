@@ -1,14 +1,14 @@
 [grapevine]
 display_name = Grapevine
-base_temperature = 5
-gdd_threshold = 250
-frost_threshold = -2
+base_temperature = 10
+gdd_threshold = 75
+frost_threshold = 0
 
 [apple]
 display_name = Apple
-base_temperature = 4
-gdd_threshold = 150
-frost_threshold = -2
+base_temperature = 5
+gdd_threshold = 100
+frost_threshold = 0
 
 [pear]
 display_name = Pear
