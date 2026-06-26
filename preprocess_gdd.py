@@ -27,13 +27,13 @@ import numpy as np
 from backend.core.config import PRECOMPUTED_DIR
 from backend.services import storage
 from backend.services.gdd_service import (
-    _NEVER_REACHED_BUDBREAK,
+    CropParams,
     GDDResult,
+    _NEVER_REACHED_BUDBREAK,
     _load_year_stack,
     _result_path,
     _write_gdd_result,
     load_crops,
-    CropParams,
 )
 
 logging.basicConfig(
