@@ -20,8 +20,6 @@ import logging
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent))
-
 import numpy as np
 
 from backend.core.config import PRECOMPUTED_DIR
