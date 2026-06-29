@@ -111,7 +111,7 @@ def create_app() -> FastAPI:
 
     static_dir = Path(__file__).parent / "static"
     static_dir.mkdir(exist_ok=True)
-    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+    app.mount("/api/v1/static", StaticFiles(directory=static_dir), name="static")
 
     return app
 

@@ -24,7 +24,7 @@
   let admin1Layer = null;
   const ADMIN1_ZOOM = 5;
 
-  const STATIC = API.replace(/\/api\/v1\/?$/, '') + '/static';
+  const STATIC = API.replace(/\/?$/, '') + '/static';
 
   fetch(STATIC + '/ne_admin0.geojson')
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
