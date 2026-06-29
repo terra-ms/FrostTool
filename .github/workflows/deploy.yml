@@ -138,21 +138,53 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
-      - name: Deploy backend service
-        run: |
-          aws ecs update-service \
-            --cluster ${{ vars.ECS_CLUSTER }} \
-            --service ${{ vars.ECS_SERVICE_BACKEND }} \
-            --force-new-deployment \
-            --output json > /dev/null
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Deploy frontend service
+      # ── Backend ──────────────────────────────────────────────────────────────
+      - name: Download backend task definition
         run: |
-          aws ecs update-service \
-            --cluster ${{ vars.ECS_CLUSTER }} \
-            --service ${{ vars.ECS_SERVICE_FRONTEND }} \
-            --force-new-deployment \
-            --output json > /dev/null
+          aws ecs describe-task-definition --task-definition frosttool-backend \
+            --query taskDefinition > backend-task-def.json
+
+      - name: Update backend task definition image
+        id: backend-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: backend-task-def.json
+          container-name: backend
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_BACKEND_REPO }}:${{ github.sha }}
+
+      - name: Deploy backend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.backend-task-def.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE_BACKEND }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: false
+
+      # ── Frontend ─────────────────────────────────────────────────────────────
+      - name: Download frontend task definition
+        run: |
+          aws ecs describe-task-definition --task-definition frosttool-frontend \
+            --query taskDefinition > frontend-task-def.json
+
+      - name: Update frontend task definition image
+        id: frontend-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: frontend-task-def.json
+          container-name: frontend
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ vars.ECR_FRONTEND_REPO }}:${{ github.sha }}
+
+      - name: Deploy frontend to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.frontend-task-def.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE_FRONTEND }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: false
 
       - name: Wait for services to stabilise
         run: |
