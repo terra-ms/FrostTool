@@ -1,11 +1,13 @@
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 
-from .map_component import API, get_map_html
+from frontend.config import PUBLIC_API_URL
+
+from .map_component import get_map_html
 
 
 def create_map_frame() -> html.Iframe:
-    map_html: str = get_map_html(API)
+    map_html: str = get_map_html(PUBLIC_API_URL)
     return html.Iframe(
         id="map-frame",
         srcDoc=map_html,

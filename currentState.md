@@ -1,6 +1,6 @@
 # FrostTool — Current State
 
-Last updated: 2026-06-16 (session 11)
+Last updated: 2026-06-29 (session 12)
 
 ---
 
@@ -66,6 +66,7 @@ FrostTool/
 │       ├── graph_callbacks.py      Timeseries chart, date status display
 │       └── gdd_callbacks.py        Dropdown init, GDD render, coordinate bridge, GDD timeseries graph
 ├── crops.txt                       INI-format crop parameters (editable without code changes)
+├── preprocess_gdd.py               Standalone script: recompute GDD results locally, then sync to S3
 └── currentState.md                 This file
 ```
 
@@ -191,15 +192,15 @@ INI format, editable without restarting the server (reloaded per request via `co
 ```ini
 [grapevine]
 display_name = Grapevine
-base_temperature = 5
-gdd_threshold = 250
-frost_threshold = -2
+base_temperature = 10
+gdd_threshold = 75
+frost_threshold = 0
 
 [apple]
 display_name = Apple
-base_temperature = 4
-gdd_threshold = 150
-frost_threshold = -2
+base_temperature = 5
+gdd_threshold = 100
+frost_threshold = 0
 
 [pear]
 display_name = Pear
@@ -389,15 +390,17 @@ The app runs on AWS Fargate (region `us-east-1`) behind an Application Load Bala
 | ECS cluster | `frosttool-cluster` |
 | Backend service | `frosttool-backend-service` (task def `frosttool-backend`, 2 vCPU / 8 GB) |
 | Frontend service | `frosttool-frontend-service` (task def `frosttool-frontend`, 0.5 vCPU / 1 GB) |
-| ALB | `frosttool-alb` — `/api/*` → backend (port 8000), `/*` → frontend (port 8050) |
+| ALB | `frosttool-alb` — both HTTP (80→443 redirect) and HTTPS (443) listeners; `/api/*` → backend (port 8000), `/*` → frontend (port 8050) |
 | ECR | `frosttool-backend`, `frosttool-frontend` |
 | Task role | `frosttool-task-role` (S3 read + precomputed write) |
 | Execution role | `ecsTaskExecutionRole` |
 
 CI/CD: GitHub Actions workflow (`.github/workflows/deploy.yml`) — three-job pipeline:
-1. **lint-and-test** — ruff, black, mypy, pytest (37 tests). Installs `backend/requirements-dev.txt` + `frontend/requirements.txt`.
-2. **build-and-push** — builds both Docker images; pushes to ECR (push to `main` only). Requires lint-and-test to pass.
-3. **deploy** — force-redeploys both ECS services; waits for stabilisation. Runs on push to `main` only.
+1. **lint-and-test** — ruff, black, mypy, pytest. Installs `backend/requirements-dev.txt` + `frontend/requirements.txt`.
+2. **build-and-push** — builds both Docker images; pushes to ECR tagged with the git commit SHA and `latest` (push to `main` only). Requires lint-and-test to pass.
+3. **deploy** — downloads the current task definition, renders a new revision with the SHA-tagged image (`amazon-ecs-render-task-definition`), registers it and deploys (`amazon-ecs-deploy-task-definition`), then waits for both services to stabilise. Runs on push to `main` only.
+
+**IAM deploy user** (`frosttool-github-deploy`) needs: ECR push permissions + `ecs:UpdateService`, `ecs:DescribeServices`, `ecs:DescribeTaskDefinition`, `ecs:RegisterTaskDefinition`, `iam:PassRole` on `frosttool-task-role` and `ecsTaskExecutionRole`.
 
 ---
 
@@ -405,20 +408,31 @@ CI/CD: GitHub Actions workflow (`.github/workflows/deploy.yml`) — three-job pi
 
 The live app is working end-to-end. All GDD precomputed `.npz` files are in S3; the Fargate container reads them on startup (fast, low memory) and serves raster and timeseries requests without recomputing from raw NC files.
 
-**Local precompute workflow** (run when new years need to be added or `.npz` files need to be regenerated):
+**Local precompute workflow** (run when crop parameters change or new years need to be added):
 
-1. Set S3 mode in `.env`: `S3_BUCKET=frosttool-data`, `AWS_DEFAULT_REGION=us-east-1`, `PRECOMPUTED_DIR=precomputed`, plus `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` for the deploy user (needs `s3:ListBucket`, `s3:GetObject`, `s3:PutObject` on the bucket).
-2. Load `.env` and start the backend locally:
+Use `preprocess_gdd.py` at the project root. It runs in **local mode** (reads NC files from disk, writes `.npz` to local `precomputed/` dir) or **S3 mode** (reads from S3, writes back to S3) depending on whether `S3_BUCKET` is set in the environment.
+
+**Recommended approach — local compute, then sync to S3:**
+
+1. Configure `.env` for **local mode** (no `S3_BUCKET`). Point `DATA_ROOT_MEAN`, `DATA_ROOT_MIN`, and `PRECOMPUTED_DIR` at your local AgERA5 folder.
+2. Load `.env` and run the script:
    ```powershell
+   # Load env vars
    Get-Content "C:\Olivier\Terra local\code\FrostTool\.env" |
      Where-Object { $_ -match '^\s*[^#].+=' } |
      ForEach-Object { $k,$v = $_ -split '=',2; [System.Environment]::SetEnvironmentVariable($k.Trim(),$v.Trim(),'Process') }
-   uvicorn backend.main:app --host 127.0.0.1 --port 8000
-   ```
-3. The warmup thread reads NC files from S3, computes `YearStack` + `GDDResult`, and writes `.npz` files back to `s3://frosttool-data/precomputed/`. Watch for `GDD warm-up: year XXXX complete` in the console.
-4. Once done, redeploy Fargate — the container will find the precomputed files and start quickly.
 
-**Note:** remember to clear `S3_BUCKET=` and remove `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` from `.env` after precomputing, to keep local/docker-compose runs in local mode and avoid credentials sitting in the file.
+   # Recompute a year range and specific crops (overwrites existing .npz files)
+   python preprocess_gdd.py --years 1979-2026 --crops grapevine apple
+   ```
+3. Sync only the GDD results (and optionally the year stacks) to S3:
+   ```powershell
+   aws s3 sync "C:\Olivier\Terra local\data\AgERA5\precomputed\gdd_results" s3://frosttool-data/precomputed/gdd_results --region us-east-1
+   aws s3 sync "C:\Olivier\Terra local\data\AgERA5\precomputed\year_stacks" s3://frosttool-data/precomputed/year_stacks --region us-east-1
+   ```
+4. Redeploy Fargate — the container picks up the new `.npz` files from S3 and serves them immediately.
+
+**Note:** remember to clear `S3_BUCKET=` and remove `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` from `.env` after syncing, to keep local/docker-compose runs in local mode and avoid credentials sitting in the file.
 
 **Issues resolved (sessions 9–10):**
 
@@ -428,3 +442,13 @@ The live app is working end-to-end. All GDD precomputed `.npz` files are in S3; 
 | S3 connection failing | `AWS_DEFAULT_REGION` not set in task definition | Added to task definition environment |
 | GDD raster 502 / exit 137 OOM | Warmup held ~8 GB peak (302 global NC slices × 2 temp types simultaneously) | Fargate task memory raised to 8 GB; `_load_year_stack` now clips to Europe immediately and `del`s global arrays between tmean/tmin loads (peak ~4.5 GB). Resolved by precomputing `.npz` files locally and uploading to S3 — Fargate container never recomputes from raw NC files. |
 | `FutureWarning: Dataset.dims` | `dict(ds.dims)` deprecated | Fixed to `ds.sizes` in `debug.py` and `gdd.py` |
+
+**Issues resolved (session 12 — 2026-06-29):**
+
+| Issue | Root cause | Fix |
+|---|---|---|
+| Admin borders not showing in production | ALB HTTPS listener (port 443) had no `/api/*` → backend rule; browser requests went to Dash frontend and returned HTML instead of GeoJSON | Added ALB path-based rule on HTTPS listener: `/api/*` → `frosttool-backend-tg` (priority 1) |
+| GDD raster stuck on "COMPUTING FROST RISK" | Same root cause — raster endpoint response was HTML; `parseGeoraster` tried to parse it and hung | Fixed by ALB HTTPS listener rule above |
+| ECS deploy not picking up new Docker image | `--force-new-deployment` reuses the existing task definition which points to the old image SHA | Replaced with `amazon-ecs-render-task-definition` + `amazon-ecs-deploy-task-definition` in deploy.yml; each deploy now registers a new task definition revision with the commit-SHA-tagged image |
+| IAM AccessDeniedException during deploy | `frosttool-github-deploy` user was missing `ecs:DescribeTaskDefinition`, `ecs:RegisterTaskDefinition`, and `iam:PassRole` | Added inline policy `frosttool-deploy-ecs-extra` granting those permissions |
+| Static files served at wrong URL path | FastAPI static mount was at `/static`, but browser requests expected `/api/v1/static` to match ALB routing | Moved mount to `/api/v1/static` in `backend/main.py`; updated JS URL construction in `map.js` and `gdd_map.js` |
