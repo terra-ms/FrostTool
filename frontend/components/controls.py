@@ -36,24 +36,7 @@ def create_controls() -> dbc.Col:
         width=3,
         style=sidebar_style,
         children=[
-            html.H6("CONTINENT", style=label_style),
-            dcc.Dropdown(
-                id="continent-selector",
-                options=[
-                    {"label": "Global", "value": ""},
-                    {"label": "Africa", "value": "Africa"},
-                    {"label": "North America", "value": "North America"},
-                    {"label": "South America", "value": "South America"},
-                    {"label": "Europe", "value": "Europe"},
-                    {"label": "Asia", "value": "Asia"},
-                    {"label": "Oceania", "value": "Oceania"},
-                ],
-                value="",
-                clearable=False,
-                style={"width": "100%", "marginBottom": "12px"},
-            ),
-            dcc.Store(id="selected-continent", data=None),
-            html.Hr(style={"borderColor": "#3C8361", "margin": "22px 0"}),
+            dcc.Store(id="selected-continent", data="Europe"),
             html.H6("TEMPERATURE TYPE", style=label_style),
             dcc.Dropdown(
                 id="temp-type-selector",

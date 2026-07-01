@@ -9,6 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 # Handle imports for both direct execution and module invocation
 try:
@@ -95,6 +96,8 @@ def create_app() -> FastAPI:
         "ALLOWED_ORIGINS",
         "http://localhost:8050,http://127.0.0.1:8050",
     ).split(",")
+
+    app.add_middleware(GZipMiddleware, minimum_size=1000)
 
     # Add CORS middleware BEFORE routes
     app.add_middleware(

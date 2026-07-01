@@ -57,7 +57,7 @@ def toggle_graph_visibility(
     if trigger_id == "close-graph-btn":
         base_style["height"] = "0%"
     elif clicked_data:
-        base_style["height"] = "25%"
+        base_style["height"] = "32%"
     else:
         base_style["height"] = "0%"
     return base_style
@@ -122,11 +122,14 @@ def update_timeseries_graph(
         )
         fig.update_layout(
             title=f"Temperature at {lat:.2f}°, {lon:.2f}° ({start_date} to {end_date})",
-            xaxis_title="Date",
             yaxis_title="Temperature (°C)",
             **_EMPTY_LAYOUT,
-            margin=dict(l=40, r=20, t=40, b=40),
+            margin=dict(l=40, r=20, t=40, b=60),
             hovermode="x unified",
+            xaxis=dict(
+                nticks=10,
+                tickangle=-45,
+            ),
         )
         return fig
 

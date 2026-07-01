@@ -188,17 +188,6 @@
     lat = lat.toFixed(4);
     lon = lon.toFixed(4);
 
-    window.lastClickedCoordinate = {
-      lat: parseFloat(lat), lon: parseFloat(lon),
-      date: currentDate, dateRange: dateRange,
-    };
-
-    window.parent.postMessage({
-      type: 'coordinateClicked',
-      lat: parseFloat(lat), lon: parseFloat(lon),
-      date: currentDate, dateRange: dateRange,
-    }, '*');
-
     fetch(`${API}/value?date_str=${currentDate}&lat=${lat}&lon=${lon}&temp_type=${currentTempType}`)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(d => {
@@ -209,6 +198,17 @@
           `<span class="lo">lat ${d.lat}  lon ${d.lon}</span><br>` +
           `<span class="hi">${k}</span>`;
         tooltip.style.display = 'block';
+
+        // Only open the timeseries graph when land data exists at this point
+        window.lastClickedCoordinate = {
+          lat: parseFloat(lat), lon: parseFloat(lon),
+          date: currentDate, dateRange: dateRange,
+        };
+        window.parent.postMessage({
+          type: 'coordinateClicked',
+          lat: parseFloat(lat), lon: parseFloat(lon),
+          date: currentDate, dateRange: dateRange,
+        }, '*');
       })
       .catch(err => {
         console.error('Error fetching value:', err);

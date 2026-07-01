@@ -198,15 +198,6 @@ def render_heatmap(
 
 
 @callback(
-    Output("selected-continent", "data"),
-    Input("continent-selector", "value"),
-    prevent_initial_call=True,
-)
-def select_continent(value: str | None) -> str | None:
-    return value if value else None
-
-
-@callback(
     Output("selected-temp-type", "data"),
     Input("temp-type-selector", "value"),
     prevent_initial_call=True,
