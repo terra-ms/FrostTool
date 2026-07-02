@@ -59,7 +59,10 @@ def simplify_file(src: Path, dst: Path, tolerance: float) -> None:
             {
                 "type": "Feature",
                 "properties": {},
-                "geometry": {"type": mapping(simplified)["type"], "coordinates": coords},
+                "geometry": {
+                    "type": mapping(simplified)["type"],
+                    "coordinates": coords,
+                },
             }
         )
 

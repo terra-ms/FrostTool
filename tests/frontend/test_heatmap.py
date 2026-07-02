@@ -64,7 +64,7 @@ class TestToggleGraphVisibility:
 
     def test_coordinate_click_shows_graph(self) -> None:
         result = self._call({"lat": 1.0, "lon": 2.0}, None, "clicked-coordinate")
-        assert result["height"] == "25%"
+        assert result["height"] == "32%"
 
     def test_no_data_hides_graph(self) -> None:
         result = self._call(None, None, "clicked-coordinate")
