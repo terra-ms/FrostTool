@@ -5,7 +5,7 @@ from frontend.config import API_BASE_URL
 
 API: str = API_BASE_URL
 
-_JS_CONTENT: str = (Path(__file__).parent / "map.js").read_text(encoding="utf-8")
+_MAP_JS_PATH: Path = Path(__file__).parent / "map.js"
 
 _HTML_HEAD = """\
 <!DOCTYPE html>
@@ -47,18 +47,20 @@ _HTML_HEAD = """\
   #tooltip span.hi{color:#D6CDA4;font-weight:700;}
   #tooltip span.lo{color:#D6CDA4;}
 
-  #loading{
-    position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    z-index:9998;display:none;
-    font-family:'Montserrat',sans-serif;font-size:13px;color:#D6CDA4;text-align:center;
+  #progress-bar-wrap{
+    position:absolute;top:0;left:0;right:0;z-index:9999;
+    height:3px;display:none;background:rgba(214,205,164,0.12);
   }
-  .spinner{
-    width:50px;height:50px;
-    border:4px solid rgba(214,205,164,0.2);border-top:4px solid #D6CDA4;
-    border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 12px;
+  #progress-bar{
+    height:100%;width:0%;border-radius:0 2px 2px 0;
+    background:linear-gradient(90deg,#3C8361,#D6CDA4);
+    transition:width 0.4s ease;
   }
-  @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
-  .loading-text{color:#D6CDA4;font-size:12px;letter-spacing:1px;opacity:0.9;}
+  #progress-label{
+    position:absolute;top:8px;left:50%;transform:translateX(-50%);
+    font-family:'Montserrat',sans-serif;font-size:10px;letter-spacing:2px;
+    color:#D6CDA4;opacity:0.75;pointer-events:none;white-space:nowrap;
+  }
 </style>
 </head>
 """
@@ -73,9 +75,9 @@ _HTML_BODY_OPEN = """\
   <div class="leg-units" id="leg-units"></div>
 </div>
 <div id="tooltip">—</div>
-<div id="loading">
-  <div class="spinner"></div>
-  <div class="loading-text">LOADING RASTER</div>
+<div id="progress-bar-wrap">
+  <div id="progress-bar"></div>
+  <div id="progress-label"></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4"></script>
 <script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0"></script>
@@ -85,11 +87,12 @@ _HTML_BODY_OPEN = """\
 
 
 def _build_html(api_url: str, extra_script: str = "") -> str:
+    js = _MAP_JS_PATH.read_text(encoding="utf-8")
     return (
         _HTML_HEAD
         + _HTML_BODY_OPEN
         + f"<script>window.__API_URL__ = {json.dumps(api_url)};</script>\n"
-        + f"<script>\n{_JS_CONTENT}\n</script>\n"
+        + f"<script>\n{js}\n</script>\n"
         + extra_script
         + "</body>\n</html>"
     )

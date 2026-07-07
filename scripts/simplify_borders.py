@@ -1,36 +1,38 @@
 """
-Simplify GeoJSON border files for faster browser loading.
+Clip GeoJSON border files to Europe and simplify for fast browser rendering.
 
-Run once whenever the source GeoJSON files change:
+Source files (_src) are the original Natural Earth downloads and are never
+overwritten.  Run this once whenever the source data changes:
+
     python scripts/simplify_borders.py
 
-Reduces admin0 from ~25 MB to < 1 MB by:
-  - Applying Douglas-Peucker geometry simplification
-  - Stripping all properties (borders only need geometry)
-  - Rounding coordinates to 4 decimal places (~11 m precision)
+Output files are written to backend/static/ and committed to the repo.
 """
 
 import json
 from pathlib import Path
 
-from shapely.geometry import mapping, shape
+from shapely.geometry import box, mapping, shape
 
 STATIC_DIR = Path(__file__).parent.parent / "backend" / "static"
 
+# Generous bounding box: Azores → Kazakhstan, Canary Islands → Svalbard
+EUROPE_CLIP = box(-32, 20, 58, 76)
+
 CONFIGS = [
     {
-        "src": STATIC_DIR / "ne_admin0.geojson",
+        "src": STATIC_DIR / "ne_admin0_src.geojson",  # Natural Earth 10m, 25 MB
         "dst": STATIC_DIR / "ne_admin0.geojson",
-        "tolerance": 0.05,  # ~5 km — fine for country outlines at any map zoom
+        "tolerance": 0.002,  # ~200 m — smooth through zoom 10
     },
     {
-        "src": STATIC_DIR / "ne_admin1.geojson",
+        "src": STATIC_DIR / "ne_admin1_src.geojson",  # Natural Earth 50m, 3.7 MB
         "dst": STATIC_DIR / "ne_admin1.geojson",
-        "tolerance": 0.01,  # ~1 km — fine for province outlines at zoom ≥ 5
+        "tolerance": 0.003,  # limited by 50 m source quality; upgrade src for better results
     },
 ]
 
-COORD_PRECISION = 4  # decimal places → ~11 m precision at equator
+COORD_PRECISION = 5  # ~1 m precision at equator
 
 
 def _round_coords(obj: object) -> object:
@@ -46,16 +48,24 @@ def simplify_file(src: Path, dst: Path, tolerance: float) -> None:
     with src.open(encoding="utf-8") as f:
         fc = json.load(f)
 
-    simplified_features = []
+    out_features = []
     skipped = 0
     for feat in fc["features"]:
         geom = shape(feat["geometry"])
-        simplified = geom.simplify(tolerance, preserve_topology=True)
+
+        # Clip to Europe — discards Americas, Asia, Africa, Pacific
+        clipped = geom.intersection(EUROPE_CLIP)
+        if clipped.is_empty:
+            skipped += 1
+            continue
+
+        simplified = clipped.simplify(tolerance, preserve_topology=True)
         if simplified.is_empty:
             skipped += 1
             continue
+
         coords = _round_coords(mapping(simplified)["coordinates"])
-        simplified_features.append(
+        out_features.append(
             {
                 "type": "Feature",
                 "properties": {},
@@ -66,14 +76,14 @@ def simplify_file(src: Path, dst: Path, tolerance: float) -> None:
             }
         )
 
-    out = {"type": "FeatureCollection", "features": simplified_features}
+    out = {"type": "FeatureCollection", "features": out_features}
     with dst.open("w", encoding="utf-8") as f:
         json.dump(out, f, separators=(",", ":"))
 
     size_mb = dst.stat().st_size / 1_000_000
     print(
-        f"  done: {dst.name}: {len(simplified_features)} features"
-        f" ({skipped} empty skipped), {size_mb:.2f} MB"
+        f"  done: {dst.name}: {len(out_features)} features kept"
+        f" ({skipped} outside Europe skipped), {size_mb:.2f} MB"
     )
 
 

@@ -38,6 +38,8 @@ def layout() -> dbc.Row:
                                 children=[
                                     create_map_frame(),
                                     dcc.Store(id="raster-trigger"),
+                                    dcc.Store(id="raster-postmessage-ack"),
+                                    dcc.Store(id="raster-trigger-sent"),
                                     dcc.Store(id="clicked-coordinate"),
                                     dcc.Store(id="coordinate-intermediate"),
                                     html.Button(

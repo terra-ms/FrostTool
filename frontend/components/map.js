@@ -22,9 +22,50 @@
   let currentContinent = null;
   let borderLayer = null;
   let admin1Layer = null;
+  let _pendingRasterLoad = null;
   const ADMIN1_ZOOM = 5;
 
   const STATIC = API.replace(/\/?$/, '') + '/static';
+
+  // ── Progress bar ───────────────────────────────────────────────────────────
+  const _barWrap  = document.getElementById('progress-bar-wrap');
+  const _bar      = document.getElementById('progress-bar');
+  const _barLabel = document.getElementById('progress-label');
+
+  function _progressTo(pct, durSecs) {
+    if (!_bar) return;
+    if (durSecs <= 0) {
+      _bar.style.transition = 'none';
+      _bar.style.width = pct + '%';
+      void _bar.offsetWidth; // force style flush so next transition starts from here
+    } else {
+      _bar.style.transition = `width ${durSecs}s linear`;
+      _bar.style.width = pct + '%';
+    }
+  }
+
+  function _progressStart(label) {
+    if (!_barWrap) return;
+    const alreadyVisible = _barWrap.style.display === 'block';
+    _barWrap.style.display = 'block';
+    if (_barLabel) _barLabel.textContent = label;
+    if (!alreadyVisible) {
+      _progressTo(0, 0);
+      _progressTo(5, 0.3);
+    }
+  }
+
+  function _progressDone() {
+    if (!_barWrap) return;
+    _progressTo(100, 0.25);
+    setTimeout(() => { _barWrap.style.display = 'none'; _progressTo(0, 0); }, 380);
+  }
+
+  function _progressError() {
+    if (!_barWrap) return;
+    _barWrap.style.display = 'none';
+    _progressTo(0, 0);
+  }
 
   fetch(STATIC + '/ne_admin0.geojson')
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
@@ -32,6 +73,8 @@
       borderLayer = L.geoJSON(data, {
         style: { color: 'rgba(255,255,255,0.45)', weight: 0.7, fill: false },
       }).addTo(map);
+      // Hide immediately if province layer already loaded and active
+      if (map.getZoom() >= ADMIN1_ZOOM) borderLayer.setStyle({ opacity: 0 });
     })
     .catch(e => console.warn('Could not load country borders:', e));
 
@@ -39,9 +82,14 @@
     .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
     .then(data => {
       admin1Layer = L.geoJSON(data, {
-        style: { color: 'rgba(255,255,255,0.28)', weight: 0.5, fill: false },
-      });
-      if (map.getZoom() >= ADMIN1_ZOOM) admin1Layer.addTo(map);
+        style: { color: 'rgba(255,255,255,0.25)', weight: 0.5, fill: false },
+      }).addTo(map);
+      if (map.getZoom() >= ADMIN1_ZOOM) {
+        if (borderLayer) borderLayer.setStyle({ opacity: 0 });
+        admin1Layer.bringToFront();
+      } else {
+        admin1Layer.setStyle({ opacity: 0 });
+      }
     })
     .catch(e => console.warn('Could not load province borders:', e));
 
@@ -73,49 +121,73 @@
       continentBounds = {};
     });
 
-  window.loadRaster = function (rasterUrl, colorscaleUrl, date, dateRangeObj, continent, tempType) {
+  window.loadRaster = function (rasterUrl, colorscaleUrl, date, dateRangeObj, continent, tempType, skipColorscale) {
     if (isLoading) {
-      console.warn('Raster already loading, ignoring new request');
+      _pendingRasterLoad = {rasterUrl, colorscaleUrl, date, dateRangeObj, continent, tempType};
       return;
     }
+    _pendingRasterLoad = null;
 
     isLoading = true;
     currentDate = date;
     currentTempType = tempType || "mean";
     dateRange = dateRangeObj || null;
-    document.getElementById('loading').style.display = 'block';
+    _progressStart(skipColorscale ? 'LOADING RASTER' : 'FETCHING COLORSCALE');
+    _progressTo(12, 2.5);
 
     const previousLayer = currentLayer;
     currentLayer = null;
 
     const currentZoom = map.getZoom();
+
+    function _finish() {
+      isLoading = false;
+      if (_pendingRasterLoad) {
+        const p = _pendingRasterLoad;
+        _pendingRasterLoad = null;
+        window.loadRaster(p.rasterUrl, p.colorscaleUrl, p.date, p.dateRangeObj, p.continent, p.tempType);
+      }
+    }
     const cacheBuster = '&_cache=' + Date.now();
-    const bustColorscaleUrl = colorscaleUrl + cacheBuster;
     const bustRasterUrl = rasterUrl + '&zoom_level=' + currentZoom + cacheBuster;
 
-    fetch(bustColorscaleUrl)
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch colorscale`);
-        return r.json();
-      })
-      .then(meta => {
-        if (!meta || !meta.min_value || !meta.max_value) {
-          throw new Error('Invalid colorscale response format');
-        }
-        vmin = meta.min_value;
-        vmax = meta.max_value;
-        document.getElementById('leg-min').textContent = (vmin - 273.15).toFixed(1) + '°C';
-        document.getElementById('leg-max').textContent = (vmax - 273.15).toFixed(1) + '°C';
-        document.getElementById('leg-units').textContent = 'Absolute Scale';
-        document.getElementById('leg-title').textContent = 'Temperature';
+    const colorscaleReady = skipColorscale
+      ? Promise.resolve()
+      : fetch(colorscaleUrl + cacheBuster)
+          .then(r => {
+            if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch colorscale`);
+            return r.json();
+          })
+          .then(meta => {
+            if (!meta || !meta.min_value || !meta.max_value) {
+              throw new Error('Invalid colorscale response format');
+            }
+            vmin = meta.min_value;
+            vmax = meta.max_value;
+            document.getElementById('leg-min').textContent = (vmin - 273.15).toFixed(1) + '°C';
+            document.getElementById('leg-max').textContent = (vmax - 273.15).toFixed(1) + '°C';
+            document.getElementById('leg-units').textContent = 'Absolute Scale';
+            document.getElementById('leg-title').textContent = 'Temperature';
+          });
+
+    colorscaleReady
+      .then(() => {
+        _progressTo(15, 0);
+        _progressTo(60, 25);
+        if (_barLabel) _barLabel.textContent = 'LOADING RASTER';
         return fetch(bustRasterUrl);
       })
       .then(r => {
         if (!r.ok) throw new Error(`HTTP ${r.status}: Failed to fetch raster`);
+        _progressTo(65, 0);
+        _progressTo(85, 3.5);
+        if (_barLabel) _barLabel.textContent = 'RENDERING';
         return r.arrayBuffer();
       })
       .then(ab => {
         if (!ab || ab.byteLength === 0) throw new Error('Received empty raster data');
+        _progressTo(88, 0);
+        _progressTo(97, 0.8);
         return parseGeoraster(ab);
       })
       .then(georaster => {
@@ -138,35 +210,40 @@
 
         currentLayer.addTo(map);
         if (borderLayer) borderLayer.bringToFront();
-        if (admin1Layer && map.hasLayer(admin1Layer)) admin1Layer.bringToFront();
+        if (admin1Layer) admin1Layer.bringToFront();
 
         const isInitialLoad = lastFetchedZoomLevel === null;
         if (isInitialLoad) {
           if (continent && continentBounds[continent]) {
             const b = continentBounds[continent].bounds;
-            map.fitBounds([[b.min_lat, b.min_lon], [b.max_lat, b.max_lon]]);
+            const llBounds = [[b.min_lat, b.min_lon], [b.max_lat, b.max_lon]];
+            lastFetchedZoomLevel = map.getBoundsZoom(llBounds);
+            map.fitBounds(llBounds);
           } else {
-            map.fitBounds(currentLayer.getBounds());
+            const bounds = currentLayer.getBounds();
+            lastFetchedZoomLevel = map.getBoundsZoom(bounds);
+            map.fitBounds(bounds);
           }
+        } else {
+          lastFetchedZoomLevel = currentZoom;
         }
 
         rasterUrls.rasterUrl = rasterUrl;
         rasterUrls.colorscaleUrl = colorscaleUrl;
         currentContinent = continent;
-        lastFetchedZoomLevel = currentZoom;
 
-        document.getElementById('loading').style.display = 'none';
-        isLoading = false;
+        _progressDone();
+        _finish();
       })
       .catch(e => {
         console.error('Raster load error:', e);
-        document.getElementById('loading').style.display = 'none';
-        isLoading = false;
+        _progressError();
 
         if (previousLayer && !currentLayer) {
           try { currentLayer = previousLayer; map.addLayer(previousLayer); }
           catch (err) { console.error('Could not restore previous layer:', err); }
         }
+        _finish();
       });
   };
 
@@ -223,15 +300,19 @@
   // ---------------------------------------------------------------------------
 
   map.on('zoomend', function () {
-    if (admin1Layer) {
+    if (admin1Layer && borderLayer) {
       const zoomed = map.getZoom() >= ADMIN1_ZOOM;
-      if (zoomed && !map.hasLayer(admin1Layer)) {
-        admin1Layer.addTo(map);
-        if (borderLayer) borderLayer.bringToFront();
+      if (zoomed) {
+        borderLayer.setStyle({ opacity: 0 });
+        admin1Layer.setStyle({ opacity: 1 });
         admin1Layer.bringToFront();
-      } else if (!zoomed && map.hasLayer(admin1Layer)) {
-        map.removeLayer(admin1Layer);
+      } else {
+        admin1Layer.setStyle({ opacity: 0 });
+        borderLayer.setStyle({ opacity: 1 });
       }
+    } else if (borderLayer) {
+      // admin1 not yet loaded — keep admin0 visible regardless of zoom
+      borderLayer.setStyle({ opacity: 1 });
     }
 
     if (!currentDate || !rasterUrls.rasterUrl) return;
@@ -255,7 +336,8 @@
       log('Zoom threshold crossed (' + lastFetchedZoomLevel + ' → ' + newZoom + '): re-fetching');
       window.loadRaster(
         rasterUrls.rasterUrl, rasterUrls.colorscaleUrl,
-        currentDate, dateRange, currentContinent, currentTempType
+        currentDate, dateRange, currentContinent, currentTempType,
+        true
       );
     }
   });
@@ -265,6 +347,10 @@
   // ---------------------------------------------------------------------------
 
   window.addEventListener('message', e => {
+    if (e.data && e.data.type === 'progressStart') {
+      _progressStart(e.data.label || 'LOADING');
+      _progressTo(12, 20);
+    }
     if (e.data && e.data.type === 'loadRaster') {
       window.loadRaster(
         e.data.rasterUrl, e.data.colorscaleUrl,

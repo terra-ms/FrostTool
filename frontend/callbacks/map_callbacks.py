@@ -7,7 +7,6 @@ from dash import (
     Output,
     State,
     callback,
-    callback_context,
     clientside_callback,
     html,
 )
@@ -15,7 +14,6 @@ from dash import (
 from frontend.components.map_component import (
     API,
     get_map_html,
-    get_map_html_with_initial_raster,
 )
 from frontend.config import PUBLIC_API_URL
 from frontend.utils import kelvin_to_celsius
@@ -89,23 +87,50 @@ clientside_callback(
 @callback(
     Output("map-frame", "srcDoc"),
     Input("map-frame", "id"),
-    Input("raster-trigger", "data"),
     prevent_initial_call=False,
 )
-def update_map(map_frame_id: str, trigger_data: dict | None) -> str:
-    ctx = callback_context
-    if ctx.triggered and ctx.triggered[0]["prop_id"].startswith("raster-trigger"):
-        if not trigger_data:
-            return get_map_html(PUBLIC_API_URL)
-        return get_map_html_with_initial_raster(
-            api_url=PUBLIC_API_URL,
-            raster_url=trigger_data.get("rasterUrl"),
-            colorscale_url=trigger_data.get("colorscaleUrl"),
-            date=trigger_data.get("date"),
-            continent=trigger_data.get("continent"),
-            temp_type=trigger_data.get("tempType"),
-        )
+def initialize_map(map_frame_id: str) -> str:
     return get_map_html(PUBLIC_API_URL)
+
+
+clientside_callback(
+    """
+    function(n_clicks) {
+        if (!n_clicks) return '';
+        var iframe = document.getElementById('map-frame');
+        if (!iframe || !iframe.contentWindow) return '';
+        iframe.contentWindow.postMessage({type: 'progressStart', label: 'FETCHING DATA'}, '*');
+        return '';
+    }
+    """,
+    Output("raster-postmessage-ack", "data"),
+    Input("render-btn", "n_clicks"),
+    prevent_initial_call=True,
+)
+
+
+clientside_callback(
+    """
+    function(trigger_data) {
+        if (!trigger_data) return '';
+        var iframe = document.getElementById('map-frame');
+        if (!iframe || !iframe.contentWindow) return '';
+        iframe.contentWindow.postMessage({
+            type: 'loadRaster',
+            rasterUrl: trigger_data.rasterUrl,
+            colorscaleUrl: trigger_data.colorscaleUrl,
+            date: trigger_data.date,
+            dateRange: trigger_data.dateRange,
+            continent: trigger_data.continent,
+            tempType: trigger_data.tempType
+        }, '*');
+        return '';
+    }
+    """,
+    Output("raster-trigger-sent", "data"),
+    Input("raster-trigger", "data"),
+    prevent_initial_call=True,
+)
 
 
 @callback(
