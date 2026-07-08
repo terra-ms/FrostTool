@@ -10,14 +10,20 @@ Output files are written to backend/static/ and committed to the repo.
 """
 
 import json
+import sys
 from pathlib import Path
 
 from shapely.geometry import box, mapping, shape
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from backend.core.config import CONTINENTS  # noqa: E402
+
 STATIC_DIR = Path(__file__).parent.parent / "backend" / "static"
 
-# Generous bounding box: Azores → Kazakhstan, Canary Islands → Svalbard
-EUROPE_CLIP = box(-32, 20, 58, 76)
+# Clip to the exact raster bbox so border and heatmap outer limits align
+_MIN_LAT, _MAX_LAT, _MIN_LON, _MAX_LON = CONTINENTS["Europe"]
+EUROPE_CLIP = box(_MIN_LON, _MIN_LAT, _MAX_LON, _MAX_LAT)
 
 CONFIGS = [
     {
@@ -26,9 +32,9 @@ CONFIGS = [
         "tolerance": 0.002,  # ~200 m — smooth through zoom 10
     },
     {
-        "src": STATIC_DIR / "ne_admin1_src.geojson",  # Natural Earth 50m, 3.7 MB
+        "src": STATIC_DIR / "ne_admin1_src.geojson",  # Natural Earth 10m, Europe-clipped
         "dst": STATIC_DIR / "ne_admin1.geojson",
-        "tolerance": 0.003,  # limited by 50 m source quality; upgrade src for better results
+        "tolerance": 0.002,  # ~200 m — smooth through zoom 10
     },
 ]
 

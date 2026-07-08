@@ -231,9 +231,12 @@ def sync_gdd_coordinate(intermediate: dict | None) -> dict | None:
     Output("gdd-graph-container", "style"),
     Input("gdd-clicked-coordinate", "data"),
     Input("gdd-close-graph-btn", "n_clicks"),
+    Input("gdd-render-btn", "n_clicks"),
     prevent_initial_call=True,
 )
-def toggle_gdd_graph(clicked: dict | None, close_clicks: int | None) -> dict:
+def toggle_gdd_graph(
+    clicked: dict | None, close_clicks: int | None, render_clicks: int | None
+) -> dict:
     base: dict = {
         "borderTop": "1px solid #3C8361",
         "background": "#0D4F44",
@@ -246,9 +249,15 @@ def toggle_gdd_graph(clicked: dict | None, close_clicks: int | None) -> dict:
         if callback_context.triggered
         else None
     )
-    base["height"] = (
-        "0%" if (trigger == "gdd-close-graph-btn" or not clicked) else "30%"
-    )
+    if trigger == "gdd-clicked-coordinate" and clicked:
+        base["height"] = "30%"
+        base["display"] = "block"
+    else:
+        # Closed via ✕, hidden on re-render, or no coordinate clicked yet.
+        # display:none (not just height 0) — the ✕ button would otherwise
+        # remain visible as a strip at the bottom.
+        base["height"] = "0%"
+        base["display"] = "none"
     return base
 
 

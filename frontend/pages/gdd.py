@@ -187,6 +187,7 @@ def layout() -> dbc.Row:
                         id="gdd-graph-container",
                         style={
                             "height": "0%",
+                            "display": "none",
                             "borderTop": "1px solid #3C8361",
                             "background": "#0D4F44",
                             "overflow": "hidden",

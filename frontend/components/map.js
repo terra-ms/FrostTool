@@ -73,8 +73,6 @@
       borderLayer = L.geoJSON(data, {
         style: { color: 'rgba(255,255,255,0.45)', weight: 0.7, fill: false },
       }).addTo(map);
-      // Hide immediately if province layer already loaded and active
-      if (map.getZoom() >= ADMIN1_ZOOM) borderLayer.setStyle({ opacity: 0 });
     })
     .catch(e => console.warn('Could not load country borders:', e));
 
@@ -85,8 +83,8 @@
         style: { color: 'rgba(255,255,255,0.25)', weight: 0.5, fill: false },
       }).addTo(map);
       if (map.getZoom() >= ADMIN1_ZOOM) {
-        if (borderLayer) borderLayer.setStyle({ opacity: 0 });
         admin1Layer.bringToFront();
+        if (borderLayer) borderLayer.bringToFront();
       } else {
         admin1Layer.setStyle({ opacity: 0 });
       }
@@ -209,8 +207,8 @@
         });
 
         currentLayer.addTo(map);
-        if (borderLayer) borderLayer.bringToFront();
         if (admin1Layer) admin1Layer.bringToFront();
+        if (borderLayer) borderLayer.bringToFront();
 
         const isInitialLoad = lastFetchedZoomLevel === null;
         if (isInitialLoad) {
@@ -300,19 +298,15 @@
   // ---------------------------------------------------------------------------
 
   map.on('zoomend', function () {
-    if (admin1Layer && borderLayer) {
-      const zoomed = map.getZoom() >= ADMIN1_ZOOM;
-      if (zoomed) {
-        borderLayer.setStyle({ opacity: 0 });
+    // Country borders stay visible at all zooms; provinces fade in at ADMIN1_ZOOM
+    if (admin1Layer) {
+      if (map.getZoom() >= ADMIN1_ZOOM) {
         admin1Layer.setStyle({ opacity: 1 });
         admin1Layer.bringToFront();
+        if (borderLayer) borderLayer.bringToFront();
       } else {
         admin1Layer.setStyle({ opacity: 0 });
-        borderLayer.setStyle({ opacity: 1 });
       }
-    } else if (borderLayer) {
-      // admin1 not yet loaded — keep admin0 visible regardless of zoom
-      borderLayer.setStyle({ opacity: 1 });
     }
 
     if (!currentDate || !rasterUrls.rasterUrl) return;

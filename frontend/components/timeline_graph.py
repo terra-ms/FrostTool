@@ -6,6 +6,7 @@ def create_graph_container() -> html.Div:
         id="graph-container",
         style={
             "height": "0%",
+            "display": "none",
             "borderTop": "1px solid #3C8361",
             "background": "#0D4F44",
             "padding": "12px",

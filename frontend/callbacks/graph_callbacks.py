@@ -36,11 +36,13 @@ def show_date_status(start_date: str | None, end_date: str | None) -> str:
     Output("graph-container", "style"),
     Input("clicked-coordinate", "data"),
     Input("close-graph-btn", "n_clicks"),
+    Input("render-btn", "n_clicks"),
     prevent_initial_call=True,
 )
 def toggle_graph_visibility(
     clicked_data: dict | None,
     close_clicks: int | None,
+    render_clicks: int | None,
 ) -> dict:
     base_style: dict = {
         "borderTop": "1px solid #3C8361",
@@ -54,12 +56,15 @@ def toggle_graph_visibility(
     if callback_context.triggered:
         trigger_id = callback_context.triggered[0]["prop_id"].split(".")[0]
 
-    if trigger_id == "close-graph-btn":
-        base_style["height"] = "0%"
-    elif clicked_data:
+    if trigger_id == "clicked-coordinate" and clicked_data:
         base_style["height"] = "32%"
+        base_style["display"] = "block"
     else:
+        # Closed via ✕, hidden on re-render, or no coordinate clicked yet.
+        # display:none (not just height 0) — padding and the ✕ button would
+        # otherwise remain visible as a strip at the bottom.
         base_style["height"] = "0%"
+        base_style["display"] = "none"
     return base_style
 
 
