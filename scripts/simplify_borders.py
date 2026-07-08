@@ -32,7 +32,7 @@ CONFIGS = [
         "tolerance": 0.002,  # ~200 m — smooth through zoom 10
     },
     {
-        "src": STATIC_DIR / "ne_admin1_src.geojson",  # Natural Earth 10m, Europe-clipped
+        "src": STATIC_DIR / "ne_admin1_src.geojson",  # NE 10m, Europe-clipped
         "dst": STATIC_DIR / "ne_admin1.geojson",
         "tolerance": 0.002,  # ~200 m — smooth through zoom 10
     },

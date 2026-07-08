@@ -48,7 +48,11 @@ class TestShowDateStatus:
 
 class TestToggleGraphVisibility:
     def _call(
-        self, clicked_data: dict | None, close_clicks: int | None, trigger: str
+        self,
+        clicked_data: dict | None,
+        close_clicks: int | None,
+        trigger: str,
+        render_clicks: int | None = None,
     ) -> dict:
         mock_ctx = MagicMock()
         mock_ctx.triggered = [{"prop_id": f"{trigger}.n_clicks"}]
@@ -56,19 +60,27 @@ class TestToggleGraphVisibility:
         with patch("frontend.callbacks.graph_callbacks.callback_context", mock_ctx):
             from frontend.callbacks.graph_callbacks import toggle_graph_visibility
 
-            return toggle_graph_visibility(clicked_data, close_clicks)
+            return toggle_graph_visibility(clicked_data, close_clicks, render_clicks)
 
     def test_close_button_hides_graph(self) -> None:
         result = self._call({"lat": 1.0, "lon": 2.0}, 1, "close-graph-btn")
         assert result["height"] == "0%"
+        assert result["display"] == "none"
+
+    def test_render_button_hides_graph(self) -> None:
+        result = self._call({"lat": 1.0, "lon": 2.0}, None, "render-btn", 1)
+        assert result["height"] == "0%"
+        assert result["display"] == "none"
 
     def test_coordinate_click_shows_graph(self) -> None:
         result = self._call({"lat": 1.0, "lon": 2.0}, None, "clicked-coordinate")
         assert result["height"] == "32%"
+        assert result["display"] == "block"
 
     def test_no_data_hides_graph(self) -> None:
         result = self._call(None, None, "clicked-coordinate")
         assert result["height"] == "0%"
+        assert result["display"] == "none"
 
     def test_returns_all_required_style_keys(self) -> None:
         result = self._call({"lat": 1.0, "lon": 2.0}, None, "clicked-coordinate")
