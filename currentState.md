@@ -46,8 +46,7 @@ FrostTool/
 │   │   └── aggregation_service.py  min/max/mean aggregation over date ranges
 │   └── api/routes/
 │       ├── climate.py              /api/v1/* (raster, colorscale, value, timeseries, continents)
-│       ├── gdd.py                  /api/v1/gdd/* (raster, colorscale, crops, available-years, timeseries)
-│       └── debug.py                /api/v1/debug/s3 — S3 connectivity diagnostic (step-by-step JSON report)
+│       └── gdd.py                  /api/v1/gdd/* (raster, colorscale, crops, available-years, timeseries)
 ├── frontend/
 │   ├── app.py                      Dash app (use_pages=True), shared layout
 │   ├── config.py                   API_BASE_URL = http://localhost:8000/api/v1

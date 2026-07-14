@@ -43,8 +43,7 @@ project-root/
 │   ├── api/
 │   │   ├── routes/
 │   │   │   ├── climate.py          # /api/v1/* — raster, colorscale, value, timeseries, continents
-│   │   │   ├── gdd.py              # /api/v1/gdd/* — raster, colorscale, crops, available-years, timeseries
-│   │   │   └── debug.py            # /api/v1/debug/s3 — S3 connectivity diagnostic
+│   │   │   └── gdd.py              # /api/v1/gdd/* — raster, colorscale, crops, available-years, timeseries
 │   │   └── dependencies.py         # Shared FastAPI dependencies
 │   ├── services/
 │   │   ├── netcdf_service.py       # NetCDF slice reads, GeoTIFF encoding, _HDF5_LOCK
