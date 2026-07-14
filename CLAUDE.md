@@ -1,13 +1,20 @@
 # Claude Code Instructions
 
+> **This file covers conventions, invariants, and gotchas.** For the current app state —
+> endpoints, GDD algorithm details, S3/Fargate deployment, CI/CD, and open issues —
+> see **`currentState.md`** at the project root. When the two disagree, `currentState.md` wins.
+
 ## Project Overview
 
-Full-stack geospatial data application for visualising global climate data from NetCDF (`.nc`) files. The backend is a **FastAPI** REST API; the frontend is a **Dash** app rendering interactive **Leaflet** heatmaps via `georaster-layer-for-leaflet`. The architecture must remain fast and expandable — upcoming features include GDD (Growing Degree Days) per crop type and hosting on S3 + Fargate.
+Full-stack geospatial data application for visualising global climate data from NetCDF (`.nc`) files. The backend is a **FastAPI** REST API; the frontend is a **Dash** app rendering interactive **Leaflet** heatmaps via `georaster-layer-for-leaflet`. Two pages: **Heatmap** (`/`, global temperature rasters) and **Frost Risk** (`/gdd`, per-crop GDD-based frost event counts over Europe).
+
+The app is **deployed on AWS Fargate** (cluster `frosttool-cluster`, region `us-east-1`) behind an ALB, reading data from **S3** (`frosttool-data`). All backend file I/O goes through the local/S3 storage abstraction in `backend/services/storage.py`, switched by the `S3_BUCKET` env var (unset = local mode). The architecture must remain fast and expandable.
 
 **Running locally:**
 - Backend: `python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000` (from project root with `PYTHONPATH=.`)
-- Frontend: `python frontend/app.py` (Dash on port 8050)
+- Frontend: `python -m frontend.app` (Dash on port 8050)
 - Backend must be running before starting the frontend.
+- Or `docker compose up --build` (see `currentState.md` for the `.env` setup).
 
 ---
 
@@ -20,6 +27,8 @@ Full-stack geospatial data application for visualising global climate data from 
 | Frontend  | Dash (Plotly), dash-leaflet, georaster-layer-for-leaflet|
 | Caching (climate) | Two-level: in-memory LRU (60 entries) + diskcache (20 GB) — heatmap raster slices |
 | Caching (GDD)     | In-memory dict + precomputed `.npz` files in `AgERA5/precomputed/` — no TTL, no expiry |
+| Storage   | `backend/services/storage.py` — local `pathlib` or S3 via `s3fs` (`S3_BUCKET` env var) |
+| Deployment| Docker (backend + frontend images), AWS Fargate + ALB, GitHub Actions (`.github/workflows/deploy.yml`) |
 | Testing   | pytest, httpx (async FastAPI tests)                     |
 | Linting   | ruff, black, mypy (strict)                              |
 
@@ -30,40 +39,55 @@ Full-stack geospatial data application for visualising global climate data from 
 ```
 project-root/
 ├── backend/
-│   ├── main.py                  # FastAPI app factory
+│   ├── main.py                     # FastAPI app factory + lifespan GDD warm-up
 │   ├── api/
 │   │   ├── routes/
-│   │   │   ├── climate.py       # Climate data endpoints
-│   │   │   └── regions.py       # Region aggregation endpoints
-│   │   └── dependencies.py      # Shared FastAPI dependencies
+│   │   │   ├── climate.py          # /api/v1/* — raster, colorscale, value, timeseries, continents
+│   │   │   ├── gdd.py              # /api/v1/gdd/* — raster, colorscale, crops, available-years, timeseries
+│   │   │   └── debug.py            # /api/v1/debug/s3 — S3 connectivity diagnostic
+│   │   └── dependencies.py         # Shared FastAPI dependencies
 │   ├── services/
-│   │   ├── netcdf_service.py    # All NetCDF I/O and processing
-│   │   ├── aggregation_service.py  # Region/crop aggregation logic
-│   │   └── cache_service.py     # Caching wrappers
+│   │   ├── netcdf_service.py       # NetCDF slice reads, GeoTIFF encoding, _HDF5_LOCK
+│   │   ├── gdd_service.py          # GDD computation + YearStack/GDDResult .npz persistence
+│   │   ├── aggregation_service.py  # min/max/mean aggregation over date ranges
+│   │   ├── cache_service.py        # Two-level temperature cache (LRU + diskcache)
+│   │   └── storage.py              # Local/S3 file I/O abstraction (S3_BUCKET switch)
 │   ├── models/
-│   │   ├── schemas.py           # Pydantic request/response models
-│   │   └── domain.py            # Internal domain dataclasses
+│   │   ├── schemas.py              # Pydantic request/response models
+│   │   └── domain.py               # Internal domain dataclasses
+│   ├── static/                     # Natural Earth border GeoJSONs (served at /api/v1/static)
 │   └── core/
-│       ├── config.py            # Settings via pydantic-settings
-│       └── exceptions.py        # Custom exception types
+│       ├── config.py               # TEMPERATURE_SOURCES, PRECOMPUTED_DIR, S3_BUCKET, GDD_WARMUP_MIN_YEAR, …
+│       └── exceptions.py           # Custom exception types
 ├── frontend/
-│   ├── app.py                   # Dash app factory
+│   ├── app.py                      # Dash app (use_pages=True), shared layout
+│   ├── config.py                   # API URLs (REACT_APP_API_URL / PUBLIC_API_URL), UI constants
 │   ├── pages/
-│   │   └── heatmap.py           # Heatmap page layout
+│   │   ├── heatmap.py              # Heatmap page (/)
+│   │   └── gdd.py                  # Frost Risk page (/gdd)
 │   ├── components/
-│   │   ├── map_component.py     # Leaflet map wrapper
-│   │   ├── timeline_graph.py    # Timeline/graph component
-│   │   └── controls.py          # Parameter/filter controls
-│   ├── utils.py                 # Shared helpers (e.g. kelvin_to_celsius)
+│   │   ├── map_component.py        # Heatmap iframe HTML template
+│   │   ├── map.js                  # Leaflet + GeoRasterLayer logic (heatmap)
+│   │   ├── gdd_map_component.py    # GDD iframe HTML template
+│   │   ├── gdd_map.js              # Leaflet + GeoRasterLayer logic (GDD)
+│   │   ├── timeline_graph.py       # Timeline/graph component
+│   │   └── controls.py             # Shared header, sidebar controls, map frame
+│   ├── utils.py                    # Shared helpers (e.g. kelvin_to_celsius)
 │   └── callbacks/
-│       ├── map_callbacks.py     # Map render, coordinate bridge, continent/temp-type selection
-│       └── graph_callbacks.py   # Timeseries graph (triggered by map coordinate click)
-├── data/                        # Local data root (never committed — see DATA_ROOT)
+│       ├── map_callbacks.py        # Heatmap render, coordinate bridge, continent/temp-type selection
+│       ├── graph_callbacks.py      # Timeseries graph (triggered by map coordinate click)
+│       └── gdd_callbacks.py        # GDD dropdowns, render, coordinate bridge, GDD timeseries
+├── crops.txt                       # INI-format crop parameters (editable live, reloaded per request)
+├── preprocess_gdd.py               # Standalone: recompute GDD .npz locally, then sync to S3
+├── download_geodata.py             # Fetch/clip Natural Earth border GeoJSONs
+├── scripts/simplify_borders.py     # Simplify border geometries
+├── docker-compose.yml              # Local two-container run (backend/Dockerfile, frontend/Dockerfile)
 ├── tests/
 │   ├── backend/
 │   └── frontend/
+├── currentState.md                 # Living doc: app state, endpoints, deployment, open issues
 └── .github/
-    └── copilot-instructions.md
+    └── workflows/deploy.yml        # lint-and-test → build-and-push (ECR) → deploy (ECS)
 ```
 
 ---
@@ -164,7 +188,7 @@ The application uses **AgERA5** daily climate rasters. Two temperature variables
 | `mean` | `Temperature_Air_2m_Mean_24h`         | `C:\Olivier\Terra local\data\AgERA5\tmean_v2`          |
 | `min`  | `Temperature_Air_2m_Min_24h`          | `C:\Olivier\Terra local\data\AgERA5\tmin_v2`           |
 
-Data is available locally for **1979–2022**. All values are in **Kelvin**; the frontend converts to °C for display.
+Local data: `tmean` covers **1979–2022**, `tmin` only **1979–2007** (test dataset). The full dataset lives in **S3** (`s3://frosttool-data/`, same folder layout). The GDD year dropdown only offers years present in **both** variables. All values are in **Kelvin**; the frontend converts to °C for display.
 
 ### Directory Layout on Disk (actual)
 
@@ -185,21 +209,18 @@ C:\Olivier\Terra local\data\AgERA5\tmean_v2\
 
 ### Configuration (`core/config.py`)
 
-Both data roots, variable names, and cache settings are centralised in `TEMPERATURE_SOURCES`. The relevant env vars are `DATA_ROOT_MEAN`, `DATA_ROOT_MIN`, and `CACHE_DIR`. Never import `os.environ` or construct data paths outside of `core/config.py`.
+Data roots and variable names are centralised in `TEMPERATURE_SOURCES`. Backend env vars: `DATA_ROOT_MEAN`, `DATA_ROOT_MIN`, `CACHE_DIR`, `PRECOMPUTED_DIR`, `S3_BUCKET`, `CROPS_CONFIG`, `GDD_WARMUP_MIN_YEAR` (default **2015**). Never read `os.environ` or construct data paths in backend code outside of `core/config.py` and `services/storage.py`. Frontend config lives in `frontend/config.py` (`REACT_APP_API_URL` for server-side calls, `PUBLIC_API_URL` for browser/iframe JS).
+
+In **S3 mode** (`S3_BUCKET` set), `DATA_ROOT_MEAN`/`DATA_ROOT_MIN`/`PRECOMPUTED_DIR` only need the folder name (e.g. `tmean_v2`) — the last path component becomes the S3 key prefix.
 
 ### File Resolution
 
-All path-building lives in `NetCDFService.resolve_nc_path`. The actual implementation:
+`NetCDFService.resolve_nc_path` (`netcdf_service.py`) is a thin wrapper that delegates to `storage.find_nc_file(data_root, year, date_str)`, which returns a local `Path` in local mode or an `s3://...` URL string in S3 mode. **Do not build NetCDF paths anywhere else** — all file I/O (glob, open, npz load/save) goes through `backend/services/storage.py`.
 
-```python
-folder = data_root / f"{date_obj.year:04d}"          # YYYY only — no MM subfolder
-pattern = date_obj.isoformat().replace("-", "")       # "YYYYMMDD"
-matches = list(folder.glob(f"*{pattern}*.nc"))
-```
-
-- The glob pattern is `YYYYMMDD` (hyphens stripped), matching the real filenames.
+- The match pattern is `YYYYMMDD` (hyphens stripped), matching the real filenames.
 - API endpoints accept dates as `YYYY-MM-DD` strings; parse to `datetime.date` in the route before passing to the service.
 - If multiple files match the same date, log a warning and use the first match.
+- Opening: `storage.open_nc(path)` is a context manager — in S3 mode it downloads to a temp file first (the NetCDF4 C library cannot open `s3://` URLs). Always use it together with `_HDF5_LOCK`.
 
 ### What NOT to Do (data-specific)
 

@@ -4,9 +4,10 @@ from dash import dcc, html
 
 from frontend.components.gdd_map_component import create_gdd_map_frame
 
-dash.register_page(__name__, path="/gdd", name="Frost Risk")
+# dash.register_page has no type annotations in the dash package itself.
+dash.register_page(__name__, path="/gdd", name="Frost Risk")  # type: ignore[no-untyped-call]
 
-_LABEL_STYLE: dict = {
+_LABEL_STYLE: dict[str, str] = {
     "fontFamily": "'Montserrat',sans-serif",
     "fontSize": "10px",
     "letterSpacing": "2px",
@@ -14,7 +15,7 @@ _LABEL_STYLE: dict = {
     "marginBottom": "10px",
 }
 
-_SIDEBAR_STYLE: dict = {
+_SIDEBAR_STYLE: dict[str, str] = {
     "background": "#EEF2E6",
     "borderRight": "1px solid #3C8361",
     "padding": "26px 20px",
@@ -22,7 +23,7 @@ _SIDEBAR_STYLE: dict = {
     "height": "100%",
 }
 
-_BTN_STYLE: dict = {
+_BTN_STYLE: dict[str, str] = {
     "width": "100%",
     "fontFamily": "'Montserrat',sans-serif",
     "fontWeight": "700",

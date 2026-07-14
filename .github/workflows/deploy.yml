@@ -61,7 +61,7 @@ jobs:
         run: black --check .
 
       - name: Mypy
-        run: mypy backend/
+        run: mypy backend/ frontend/
 
       - name: Pytest
         run: pytest tests/ -q

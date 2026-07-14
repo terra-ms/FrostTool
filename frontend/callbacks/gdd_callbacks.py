@@ -11,25 +11,30 @@ from frontend.components.gdd_map_component import (
     get_gdd_map_html_with_raster,
 )
 from frontend.config import API_BASE_URL, PUBLIC_API_URL
+from frontend.utils import JSONDict
 
 logger = logging.getLogger(__name__)
 
+# Dash dropdown option lists: [{"label": ..., "value": ...}, ...]
+CropOptions = list[dict[str, str]]
+YearOptions = list[dict[str, str | int]]
+
 # Module-level cache: populated on first successful fetch per Dash server session.
 # Subsequent navigations to /gdd return instantly without hitting the backend.
-_cached_crop_options: list[dict] | None = None
-_cached_year_options: list[dict] | None = None
+_cached_crop_options: CropOptions | None = None
+_cached_year_options: YearOptions | None = None
 _cached_default_year: int | None = None
 
 _TIMEOUT = 5  # seconds per request
 
 
-def _fetch_crops() -> list[dict]:
+def _fetch_crops() -> CropOptions:
     r = requests.get(f"{API_BASE_URL}/gdd/crops", timeout=_TIMEOUT)
     r.raise_for_status()
     return [{"label": c["display_name"], "value": c["name"]} for c in r.json()["crops"]]
 
 
-def _fetch_years() -> tuple[list[dict], int]:
+def _fetch_years() -> tuple[YearOptions, int]:
     r = requests.get(f"{API_BASE_URL}/gdd/available-years", timeout=_TIMEOUT)
     r.raise_for_status()
     data = r.json()
@@ -47,29 +52,29 @@ def _fetch_years() -> tuple[list[dict], int]:
 )
 def populate_gdd_dropdowns(
     _: bool,
-) -> tuple[list[dict], str | None, list[dict], int | None]:
+) -> tuple[CropOptions, str | None, YearOptions, int | None]:
     global _cached_crop_options, _cached_year_options, _cached_default_year
 
     if _cached_crop_options is not None and _cached_year_options is not None:
-        default_crop = (
+        cached_default_crop = (
             _cached_crop_options[0]["value"] if _cached_crop_options else None
         )
         return (
             _cached_crop_options,
-            default_crop,
+            cached_default_crop,
             _cached_year_options,
             _cached_default_year,
         )
 
     # Both requests run in parallel — worst-case block is _TIMEOUT, not 2 × _TIMEOUT.
-    crop_options: list[dict] = []
+    crop_options: CropOptions = []
     default_crop: str | None = None
-    year_options: list[dict] = []
+    year_options: YearOptions = []
     default_year: int | None = None
 
     with ThreadPoolExecutor(max_workers=2) as pool:
-        crops_future: Future[list[dict]] = pool.submit(_fetch_crops)
-        years_future: Future[tuple[list[dict], int]] = pool.submit(_fetch_years)
+        crops_future: Future[CropOptions] = pool.submit(_fetch_crops)
+        years_future: Future[tuple[YearOptions, int]] = pool.submit(_fetch_years)
 
         try:
             crop_options = crops_future.result()
@@ -131,13 +136,13 @@ def render_gdd_map(
     year: int | None,
     period_start: str | None,
     period_end: str | None,
-) -> tuple[str, str, dict | None]:
+) -> tuple[str, str, dict[str, str | None] | None]:
     if not crop or not year:
         return get_gdd_map_html(), "Select a crop and year, then click Render.", None
 
     raster_url = f"{PUBLIC_API_URL}/gdd/raster?year={year}&crop={crop}"
     period_label = ""
-    active_period: dict | None = None
+    active_period: dict[str, str | None] | None = None
 
     if period_start or period_end:
         date_from = period_start[:10] if period_start else None
@@ -218,7 +223,7 @@ clientside_callback(
     Input("gdd-coordinate-intermediate", "data"),
     prevent_initial_call=True,
 )
-def sync_gdd_coordinate(intermediate: dict | None) -> dict | None:
+def sync_gdd_coordinate(intermediate: JSONDict | None) -> JSONDict | None:
     return intermediate
 
 
@@ -235,9 +240,9 @@ def sync_gdd_coordinate(intermediate: dict | None) -> dict | None:
     prevent_initial_call=True,
 )
 def toggle_gdd_graph(
-    clicked: dict | None, close_clicks: int | None, render_clicks: int | None
-) -> dict:
-    base: dict = {
+    clicked: JSONDict | None, close_clicks: int | None, render_clicks: int | None
+) -> dict[str, str]:
+    base: dict[str, str] = {
         "borderTop": "1px solid #3C8361",
         "background": "#0D4F44",
         "overflow": "hidden",
@@ -265,7 +270,7 @@ def toggle_gdd_graph(
 # GDD timeseries graph
 # ---------------------------------------------------------------------------
 
-_BASE_LAYOUT: dict = dict(
+_BASE_LAYOUT: JSONDict = dict(
     template="plotly_dark",
     paper_bgcolor="#0D4F44",
     plot_bgcolor="#0D4F44",
@@ -288,7 +293,7 @@ def _empty_figure() -> go.Figure:
     prevent_initial_call=True,
 )
 def update_gdd_timeseries(
-    clicked: dict | None, active_period: dict | None
+    clicked: JSONDict | None, active_period: dict[str, str | None] | None
 ) -> go.Figure:
     if not clicked:
         return _empty_figure()

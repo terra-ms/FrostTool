@@ -5,7 +5,8 @@ from dash import dcc, html
 from frontend.components.controls import create_controls, create_map_frame
 from frontend.components.timeline_graph import create_graph_container
 
-dash.register_page(__name__, path="/", name="Heatmap")
+# dash.register_page has no type annotations in the dash package itself.
+dash.register_page(__name__, path="/", name="Heatmap")  # type: ignore[no-untyped-call]
 
 
 def layout() -> dbc.Row:

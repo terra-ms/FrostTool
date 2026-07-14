@@ -16,7 +16,7 @@ from frontend.components.map_component import (
     get_map_html,
 )
 from frontend.config import PUBLIC_API_URL
-from frontend.utils import kelvin_to_celsius
+from frontend.utils import JSONDict, kelvin_to_celsius
 
 # ---------------------------------------------------------------------------
 # Coordinate bridge: iframe → Dash store
@@ -42,7 +42,9 @@ clientside_callback(
     Input("coordinate-intermediate", "data"),
     prevent_initial_call=True,
 )
-def sync_coordinate_to_final_store(intermediate_data: dict | None) -> dict | None:
+def sync_coordinate_to_final_store(
+    intermediate_data: JSONDict | None,
+) -> JSONDict | None:
     return intermediate_data
 
 
@@ -149,7 +151,8 @@ def render_heatmap(
     end_date: str | None,
     selected_continent: str | None,
     selected_temp_type: str | None,
-) -> tuple:
+) -> tuple[list[html.Div], JSONDict | object]:
+    # Second element is the raster-trigger dict, or dash.no_update on errors.
     if not start_date or not end_date:
         return (
             [html.Div("Please select a date range first.", style={"color": "#e07050"})],
@@ -183,7 +186,7 @@ def render_heatmap(
         if selected_continent:
             raster_url += f"&continent={selected_continent}"
 
-        cs: dict = requests.get(colorscale_url_internal, timeout=60).json()
+        cs: JSONDict = requests.get(colorscale_url_internal, timeout=60).json()
     except Exception as exc:
         return (
             [html.Div(f"Backend error: {exc}", style={"color": "#e07050"})],
@@ -198,7 +201,7 @@ def render_heatmap(
 
     temp_type_label = "Minimum (24h)" if temp_type == "min" else "Mean (24h)"
 
-    stats: list = [
+    stats: list[html.Div] = [
         html.Div(f"Date Range : {d_start_str} to {d_end_str}"),
         html.Div(f"Days       : {days}"),
         html.Div(f"Type       : {temp_type_label}"),
@@ -209,7 +212,7 @@ def render_heatmap(
         html.Div(f"Mean       : {kelvin_to_celsius(cs['mean_value']):.3f}"),
     ]
 
-    trigger: dict = {
+    trigger: JSONDict = {
         "rasterUrl": raster_url,
         "colorscaleUrl": colorscale_url,
         "date": d_start_str,

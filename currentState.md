@@ -46,7 +46,7 @@ FrostTool/
 │   │   └── aggregation_service.py  min/max/mean aggregation over date ranges
 │   └── api/routes/
 │       ├── climate.py              /api/v1/* (raster, colorscale, value, timeseries, continents)
-│       ├── gdd.py                  /api/v1/gdd/* (raster, colorscale, crops, available-years, timeseries, debug/s3)
+│       ├── gdd.py                  /api/v1/gdd/* (raster, colorscale, crops, available-years, timeseries)
 │       └── debug.py                /api/v1/debug/s3 — S3 connectivity diagnostic (step-by-step JSON report)
 ├── frontend/
 │   ├── app.py                      Dash app (use_pages=True), shared layout
@@ -222,7 +222,7 @@ frost_threshold = -2
 On backend startup the `lifespan` context manager:
 
 1. **Synchronously** calls `get_available_gdd_years()` to populate its in-memory cache before the warm-up thread starts. This prevents the warm-up's disk I/O from blocking the Uvicorn async event loop on the first `/gdd/available-years` request.
-2. Starts a **background daemon thread** (`gdd-warmup`) that ensures all `YearStack` + `GDDResult` `.npz` files exist for years ≥ `GDD_WARMUP_MIN_YEAR` (default **2000**, overridable via env var — was 2005 before commit `9fb5aa5`). Years are processed most-recent-first. For each year/crop combo it calls `_load_year_stack` / `compute_frost_event_count` — these are no-ops if the `.npz` file already exists.
+2. Starts a **background daemon thread** (`gdd-warmup`) that ensures all `YearStack` + `GDDResult` `.npz` files exist for years ≥ `GDD_WARMUP_MIN_YEAR` (default **2015** in `core/config.py`, overridable via env var). Years are processed most-recent-first. For each year/crop combo it calls `_load_year_stack` / `compute_frost_event_count` — these are no-ops if the `.npz` file already exists.
 
 **Expected warm-up time:**
 - **First ever startup** (no `.npz` files): ~60 s per year (302 NetCDF reads) + ~2 s per crop. Total ~8–10 min for 2005–2007.

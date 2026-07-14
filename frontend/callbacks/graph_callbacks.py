@@ -5,9 +5,9 @@ import requests
 from dash import Input, Output, State, callback, callback_context
 
 from frontend.components.map_component import API
-from frontend.utils import kelvin_to_celsius
+from frontend.utils import JSONDict, kelvin_to_celsius
 
-_EMPTY_LAYOUT: dict = dict(
+_EMPTY_LAYOUT: JSONDict = dict(
     template="plotly_dark",
     paper_bgcolor="#0D4F44",
     plot_bgcolor="#0D4F44",
@@ -40,11 +40,11 @@ def show_date_status(start_date: str | None, end_date: str | None) -> str:
     prevent_initial_call=True,
 )
 def toggle_graph_visibility(
-    clicked_data: dict | None,
+    clicked_data: JSONDict | None,
     close_clicks: int | None,
     render_clicks: int | None,
-) -> dict:
-    base_style: dict = {
+) -> dict[str, str]:
+    base_style: dict[str, str] = {
         "borderTop": "1px solid #3C8361",
         "background": "#0D4F44",
         "padding": "12px",
@@ -75,8 +75,8 @@ def toggle_graph_visibility(
     prevent_initial_call=True,
 )
 def update_timeseries_graph(
-    clicked_coord: dict | None,
-    raster_trigger: dict | None,
+    clicked_coord: JSONDict | None,
+    raster_trigger: JSONDict | None,
 ) -> go.Figure:
     if not clicked_coord or not raster_trigger:
         return go.Figure().update_layout(

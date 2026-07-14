@@ -16,7 +16,7 @@ def create_map_frame() -> html.Iframe:
 
 
 def create_controls() -> dbc.Col:
-    label_style: dict = {
+    label_style: dict[str, str] = {
         "fontFamily": "'Montserrat',sans-serif",
         "fontSize": "10px",
         "letterSpacing": "2px",
@@ -24,7 +24,7 @@ def create_controls() -> dbc.Col:
         "marginBottom": "10px",
     }
 
-    sidebar_style: dict = {
+    sidebar_style: dict[str, str] = {
         "background": "#EEF2E6",
         "borderRight": "1px solid #3C8361",
         "padding": "26px 20px",
@@ -98,7 +98,7 @@ def create_controls() -> dbc.Col:
     )
 
 
-_NAV_LINK_STYLE: dict = {
+_NAV_LINK_STYLE: dict[str, str] = {
     "fontFamily": "'Montserrat',sans-serif",
     "fontSize": "11px",
     "letterSpacing": "1px",

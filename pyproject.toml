@@ -51,12 +51,20 @@ ignore = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["s3fs", "diskcache", "rasterio", "rasterio.*"]
+module = [
+    "s3fs",
+    "diskcache",
+    "rasterio",
+    "rasterio.*",
+    "plotly",
+    "plotly.*",
+    "dash_bootstrap_components",
+]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
-# Debug/diagnostic endpoints use many untyped nested closures; relax strictness there.
-module = ["backend.api.routes.gdd", "backend.api.routes.debug"]
+# Debug/diagnostic endpoint uses many untyped nested closures; relax strictness there.
+module = ["backend.api.routes.debug"]
 disallow_untyped_defs = false
 disallow_untyped_calls = false
 disallow_any_generics = false
